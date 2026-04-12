@@ -1,0 +1,176 @@
+version: "3.9"
+
+# ═══════════════════════════════════════════════════════════════
+#  DataMind AI Analytics Platform — Docker Compose
+#  Services: PostgreSQL · Redis · Backend (FastAPI) · Frontend (Next.js) · Celery
+# ═══════════════════════════════════════════════════════════════
+
+services:
+
+  # ── PostgreSQL Database ──────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: datamind_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-datamind}
+      POSTGRES_USER: ${POSTGRES_USER:-datamind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-datamind_secret}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-datamind}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - datamind_net
+
+  # ── Redis (Cache + Task Queue + Rate Limiting) ────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: datamind_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - datamind_net
+
+  # ── FastAPI Backend ──────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: datamind_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-datamind}:${POSTGRES_PASSWORD:-datamind_secret}@postgres:5432/${POSTGRES_DB:-datamind}
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-change-this-in-production-please-use-a-long-random-string}
+      UPLOAD_DIR: /app/uploads
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      USE_OLLAMA: ${USE_OLLAMA:-false}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@datamind.ai}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001}
+    ports:
+      - "8001:8001"
+    volumes:
+      - uploads_data:/app/uploads
+      - ./backend:/app  # Remove in production; dev-only hot reload
+    networks:
+      - datamind_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Celery Worker (Async Task Processing) ────────────────────
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: datamind_celery_worker
+    restart: unless-stopped
+    command: celery -A celery_app worker --loglevel=info --concurrency=4 -Q default,pipeline,alerts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-datamind}:${POSTGRES_PASSWORD:-datamind_secret}@postgres:5432/${POSTGRES_DB:-datamind}
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-change-this-in-production-please-use-a-long-random-string}
+      UPLOAD_DIR: /app/uploads
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      USE_OLLAMA: ${USE_OLLAMA:-false}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    volumes:
+      - uploads_data:/app/uploads
+      - ./backend:/app
+    networks:
+      - datamind_net
+
+  # ── Celery Beat (Scheduler for Alerts + Reports) ─────────────
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: datamind_celery_beat
+    restart: unless-stopped
+    command: celery -A celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-datamind}:${POSTGRES_PASSWORD:-datamind_secret}@postgres:5432/${POSTGRES_DB:-datamind}
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-change-this-in-production-please-use-a-long-random-string}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - uploads_data:/app/uploads
+      - ./backend:/app
+    networks:
+      - datamind_net
+
+  # ── Next.js Frontend ─────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8001}
+    container_name: datamind_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8001}
+    ports:
+      - "3000:3000"
+    networks:
+      - datamind_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+
+# ── Volumes ──────────────────────────────────────────────────
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:
+
+
+# ── Networks ─────────────────────────────────────────────────
+networks:
+  datamind_net:
+    driver: bridge
