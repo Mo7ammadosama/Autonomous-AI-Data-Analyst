@@ -196,9 +196,14 @@ export default function LandingPage() {
         {/* Grid overlay */}
         <div className="absolute inset-0 opacity-[0.03]"
           style={{ backgroundImage: 'linear-gradient(rgba(99,102,241,1) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,1) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
-        {/* Floating particles */}
-        {[...Array(20)].map((_, i) => (
-          <DataParticle key={i} x={Math.random() * 100} y={Math.random() * 100} delay={i * 0.3} />
+        {/* Floating particles — fixed positions to avoid SSR/client hydration mismatch */}
+        {[
+          [71.5, 76.1], [23.4, 45.2], [88.7, 12.3], [5.6, 67.8], [45.3, 32.1],
+          [62.1, 89.4], [15.8, 23.7], [78.9, 54.6], [33.2, 11.5], [91.4, 78.3],
+          [48.7, 43.9], [7.3, 88.2], [55.6, 65.7], [82.4, 27.6], [19.1, 95.3],
+          [66.8, 8.4],  [39.5, 72.1], [93.2, 41.8], [12.7, 58.4], [74.6, 33.9],
+        ].map(([x, y], i) => (
+          <DataParticle key={i} x={x} y={y} delay={i * 0.3} />
         ))}
       </div>
 
