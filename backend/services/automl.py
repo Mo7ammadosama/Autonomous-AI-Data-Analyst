@@ -49,6 +49,13 @@ class AutoMLService:
         if task_type not in ("classification", "regression", "clustering"):
             raise ValueError(f"task_type must be classification | regression | clustering")
 
+        # Validate minimum sample count
+        MIN_SAMPLES = 5
+        if len(df) < MIN_SAMPLES:
+            raise ValueError(
+                f"Dataset has only {len(df)} rows. AutoML requires at least {MIN_SAMPLES} rows to train reliably."
+            )
+
         # Prepare features and target
         feature_df = df.drop(columns=[target_column]).copy()
         if task_type != "clustering":
@@ -152,10 +159,11 @@ class AutoMLService:
             ("LogisticRegression", LogisticRegression(max_iter=500, random_state=42)),
         ]
 
+        cv_folds = max(2, min(5, len(y_enc)))
         best_name, best_model, best_score = None, None, -1.0
         for name, model in candidates:
             try:
-                scores = cross_val_score(model, X, y_enc, cv=5, scoring="f1_weighted", n_jobs=-1)
+                scores = cross_val_score(model, X, y_enc, cv=cv_folds, scoring="f1_weighted", n_jobs=-1)
                 score = float(scores.mean())
                 logger.info(f"AutoML [{name}] CV f1={score:.3f}")
                 if score > best_score:
@@ -220,10 +228,11 @@ class AutoMLService:
             ("LinearRegression", LinearRegression()),
         ]
 
+        cv_folds = max(2, min(5, len(y_num)))
         best_name, best_model, best_score = None, None, float("inf")
         for name, model in candidates:
             try:
-                scores = cross_val_score(model, X, y_num, cv=5, scoring="neg_mean_absolute_error", n_jobs=-1)
+                scores = cross_val_score(model, X, y_num, cv=cv_folds, scoring="neg_mean_absolute_error", n_jobs=-1)
                 score = float(-scores.mean())  # MAE (lower = better)
                 logger.info(f"AutoML [{name}] CV MAE={score:.3f}")
                 if score < best_score:

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { BookOpen, Search, Shield, Database, Columns, TrendingUp, Tag, CheckCircle } from 'lucide-react'
 import { catalogApi } from '@/lib/api'
+import AppLayout from '@/components/layout/AppLayout'
 
 interface CatalogEntry {
   id: string
@@ -88,6 +89,7 @@ export default function CatalogPage() {
   }
 
   return (
+    <AppLayout>
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
@@ -240,5 +242,6 @@ export default function CatalogPage() {
         </div>
       </div>
     </div>
+    </AppLayout>
   )
 }

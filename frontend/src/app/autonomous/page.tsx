@@ -224,8 +224,8 @@ export default function AutonomousPage() {
             {/* Quick stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { label: 'Rows', value: result.profile?.row_count ?? result.stats?.count?.toString() ?? '–' },
-                { label: 'Columns', value: result.profile?.column_count ?? '–' },
+                { label: 'Rows', value: result.profile?.shape?.rows ?? result.profile?.row_count ?? result.stats?.count?.toString() ?? '–' },
+                { label: 'Columns', value: result.profile?.shape?.columns ?? result.profile?.column_count ?? '–' },
                 { label: 'Insights', value: result.insights?.length ?? 0 },
                 { label: 'Recommendations', value: result.recommendations?.length ?? 0 },
               ].map(s => (

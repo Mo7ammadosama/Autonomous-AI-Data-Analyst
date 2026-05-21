@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 
 _ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 _ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+_OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
+_OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+_AGENT_PROVIDER = os.getenv("AGENT_PROVIDER", "anthropic" if os.getenv("ANTHROPIC_API_KEY") else "ollama")
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Result types
@@ -1066,10 +1069,54 @@ class DataAnalystAgent:
     MAX_ITERATIONS = 12
 
     def __init__(self):
-        import anthropic
-        self._client = anthropic.Anthropic(api_key=_ANTHROPIC_API_KEY)
         self._charts: list[dict] = []
         self._report_sections: dict[str, str] = {}
+        self._provider = _AGENT_PROVIDER
+
+        if self._provider == "anthropic":
+            import anthropic
+            self._anthropic_client = anthropic.Anthropic(api_key=_ANTHROPIC_API_KEY)
+            logger.info("DataAnalystAgent using Anthropic Claude")
+        else:
+            import httpx
+            self._http = httpx.Client(timeout=180.0)
+            logger.info(f"DataAnalystAgent using Ollama model: {_OLLAMA_MODEL}")
+
+    def _llm_call(self, system_prompt: str, messages: list, max_tokens: int = 800) -> tuple[str, int]:
+        """Unified LLM call — returns (raw_text, tokens_used)."""
+        if self._provider == "anthropic":
+            anthropic_messages = [m for m in messages if m["role"] != "system"]
+            response = self._anthropic_client.messages.create(
+                model=_ANTHROPIC_MODEL,
+                system=system_prompt,
+                messages=anthropic_messages + [{"role": "assistant", "content": "{"}],
+                max_tokens=max_tokens,
+                temperature=0,
+            )
+            tokens = (response.usage.input_tokens + response.usage.output_tokens) if response.usage else 0
+            raw = "{" + (response.content[0].text if response.content else "}")
+            return raw, tokens
+        else:
+            # Ollama
+            ollama_messages = [{"role": "system", "content": system_prompt}] + [
+                m for m in messages if m["role"] != "system"
+            ]
+            resp = self._http.post(
+                f"{_OLLAMA_BASE_URL}/api/chat",
+                json={
+                    "model": _OLLAMA_MODEL,
+                    "messages": ollama_messages,
+                    "stream": False,
+                    "options": {"temperature": 0, "num_predict": max_tokens, "num_ctx": 8192},
+                },
+            )
+            resp.raise_for_status()
+            raw = resp.json()["message"]["content"].strip()
+            # Ensure we have valid JSON — strip any markdown fences
+            if not raw.startswith("{"):
+                start = raw.find("{")
+                raw = raw[start:] if start != -1 else "{}"
+            return raw, len(raw.split())
 
     def run(
         self,
@@ -1121,16 +1168,8 @@ class DataAnalystAgent:
 
         for i in range(1, self.MAX_ITERATIONS + 1):
             try:
-                response = self._client.messages.create(
-                    model=_ANTHROPIC_MODEL,
-                    system=anthropic_system,
-                    messages=anthropic_messages + [{"role": "assistant", "content": "{"}],
-                    max_tokens=800,
-                    temperature=0,
-                )
-                total_tokens += (response.usage.input_tokens + response.usage.output_tokens) if response.usage else 0
-                # Anthropic prefill: response starts after our "{" prefix
-                raw = "{" + (response.content[0].text if response.content else "}")
+                raw, tokens = self._llm_call(anthropic_system, anthropic_messages, max_tokens=800)
+                total_tokens += tokens
                 parsed = _parse_llm_response(raw)
             except json.JSONDecodeError as exc:
                 logger.warning(f"Agent JSON parse error at step {i}: {exc} | raw={raw[:300]}")
@@ -1230,22 +1269,13 @@ class DataAnalystAgent:
                     "Respond with ONLY the JSON: "
                     '{"thought": "...", "action": "final_answer", "action_input": {"summary": "..."}}'
                 )
-                forced_response = self._client.messages.create(
-                    model=_ANTHROPIC_MODEL,
-                    system=anthropic_system,
-                    messages=anthropic_messages + [
-                        {"role": "user", "content": forced_prompt},
-                        {"role": "assistant", "content": "{"},
-                    ],
-                    max_tokens=2000,
-                    temperature=0,
-                )
-                forced_raw = "{" + (forced_response.content[0].text if forced_response.content else "}")
+                forced_msgs = anthropic_messages + [{"role": "user", "content": forced_prompt}]
+                forced_raw, forced_tokens = self._llm_call(anthropic_system, forced_msgs, max_tokens=2000)
+                total_tokens += forced_tokens
                 forced_parsed = _parse_llm_response(forced_raw)
                 if forced_parsed.get("action") == "final_answer":
                     final_summary = forced_parsed["action_input"].get("summary", gathered)
                     final_status = "completed"
-                    total_tokens += (forced_response.usage.input_tokens + forced_response.usage.output_tokens) if forced_response.usage else 0
                     logger.info(f"Forced final_answer after max iterations for run {run_id}")
             except Exception as exc:
                 logger.warning(f"Could not force final_answer for run {run_id}: {exc}")

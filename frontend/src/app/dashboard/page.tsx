@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import AppLayout from '@/components/layout/AppLayout';
-import { agentApi } from '@/lib/api';
+import { agentApi, datasetsApi } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 
 interface AgentRun {
@@ -55,6 +55,7 @@ export default function DashboardPage() {
   const [prompt, setPrompt] = useState('');
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [loading, setLoading] = useState(true);
+  const [datasetCount, setDatasetCount] = useState<number | null>(null);
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
@@ -63,6 +64,12 @@ export default function DashboardPage() {
       .then((res: { data: AgentRun[] }) => setRuns(Array.isArray(res?.data) ? res.data : []))
       .catch(() => setRuns([]))
       .finally(() => setLoading(false));
+    datasetsApi.list()
+      .then((res: any) => {
+        const list = Array.isArray(res?.data) ? res.data : [];
+        setDatasetCount(list.length);
+      })
+      .catch(() => setDatasetCount(0));
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -84,7 +91,7 @@ export default function DashboardPage() {
 
         {/* ── Top bar ─────────────────────────────────────────────────── */}
         <div className="flex items-start justify-between">
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+          <motion.div initial={{ opacity: 1, y: 0 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
             <h1 className="text-2xl font-bold text-white mb-1">
               Welcome back, <span className="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">{user?.username || 'Analyst'}</span>
             </h1>
@@ -99,7 +106,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Quick action prompt ──────────────────────────────────────── */}
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+        <motion.div initial={{ opacity: 1, y: 0 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}>
           <form onSubmit={handleSubmit} className="relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2">
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
@@ -127,13 +134,13 @@ export default function DashboardPage() {
         {/* ── Quick actions ────────────────────────────────────────────── */}
         <motion.div
           className="grid grid-cols-2 lg:grid-cols-4 gap-4"
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 1, y: 0 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
+          transition={{ delay: 0 }}
         >
           {[
             { icon: Upload, label: 'Analyze New Dataset', desc: 'Upload CSV, Excel, or connect a source', href: '/datasets', gradient: 'from-indigo-500 to-violet-600' },
-            { icon: Play,   label: 'Continue Last Analysis', desc: recentRuns[0]?.task?.slice(0, 40) + '...' || 'No recent runs', href: recentRuns[0] ? `/agent?run_id=${recentRuns[0].id}` : '/agent', gradient: 'from-violet-500 to-purple-600' },
+            { icon: Play,   label: 'Continue Last Analysis', desc: recentRuns[0]?.task ? recentRuns[0].task.slice(0, 40) + '...' : 'No recent runs', href: recentRuns[0] ? `/agent?run_id=${recentRuns[0].id}` : '/agent', gradient: 'from-violet-500 to-purple-600' },
             { icon: LayoutTemplate, label: 'Browse Templates', desc: '20+ industry analysis templates', href: '/templates', gradient: 'from-cyan-500 to-blue-600' },
             { icon: Zap,    label: 'Intelligence Feed', desc: 'Proactive anomaly detection', href: '/proactive', gradient: 'from-amber-500 to-orange-600' },
           ].map((card, i) => (
@@ -142,9 +149,9 @@ export default function DashboardPage() {
               onClick={() => router.push(card.href)}
               className="group relative rounded-2xl border border-white/8 bg-white/[0.03] p-5 text-left hover:bg-white/[0.07] hover:border-white/15 transition-all hover:shadow-xl"
               whileHover={{ y: -2 }}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 1, y: 0 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 + i * 0.05 }}
+              transition={{ delay: 0 }}
             >
               <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center mb-3 shadow-lg group-hover:scale-110 transition-transform`}>
                 <card.icon className="w-5 h-5 text-white" />
@@ -159,11 +166,11 @@ export default function DashboardPage() {
         {/* ── Stats row ────────────────────────────────────────────────── */}
         <motion.div
           className="grid grid-cols-2 lg:grid-cols-4 gap-4"
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
+          initial={{ opacity: 1 }} animate={{ opacity: 1 }} transition={{ delay: 0 }}
         >
           {[
             { label: 'Total Analyses', val: totalRuns, icon: Activity, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
-            { label: 'Datasets Loaded', val: '-', icon: Database, color: 'text-violet-400', bg: 'bg-violet-500/10' },
+            { label: 'Datasets Loaded', val: datasetCount ?? '-', icon: Database, color: 'text-violet-400', bg: 'bg-violet-500/10' },
             { label: 'Insights Generated', val: completedRuns * 8, icon: Sparkles, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
             { label: 'Hours Saved', val: `${estHoursSaved}h`, icon: Clock, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
           ].map(({ label, val, icon: Icon, color, bg }) => (
@@ -184,9 +191,9 @@ export default function DashboardPage() {
           {/* Recent Runs */}
           <motion.div
             className="lg:col-span-2 rounded-2xl border border-white/8 bg-white/[0.03]"
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 1, y: 0 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }}
+            transition={{ delay: 0 }}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
               <div className="flex items-center gap-2">
@@ -236,9 +243,9 @@ export default function DashboardPage() {
           {/* Proactive Insights */}
           <motion.div
             className="rounded-2xl border border-white/8 bg-white/[0.03]"
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 1, y: 0 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
+            transition={{ delay: 0 }}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
               <div className="flex items-center gap-2">
@@ -254,9 +261,9 @@ export default function DashboardPage() {
                 <motion.div
                   key={insight.title}
                   className="rounded-xl border border-white/5 bg-white/[0.02] p-3.5 hover:bg-white/[0.06] transition-all cursor-pointer group"
-                  initial={{ opacity: 0, x: 10 }}
+                  initial={{ opacity: 1, x: 0 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.45 + i * 0.05 }}
+                  transition={{ delay: 0 }}
                   onClick={() => router.push('/proactive')}
                 >
                   <div className="flex items-start gap-3">
@@ -284,9 +291,9 @@ export default function DashboardPage() {
         {/* ── Usage stats strip ──────────────────────────────────────── */}
         <motion.div
           className="rounded-2xl border border-white/8 bg-gradient-to-r from-indigo-500/5 to-violet-500/5 p-5 flex flex-wrap items-center justify-between gap-4"
-          initial={{ opacity: 0 }}
+          initial={{ opacity: 1 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
+          transition={{ delay: 0 }}
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">

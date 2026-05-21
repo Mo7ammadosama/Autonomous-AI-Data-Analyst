@@ -59,6 +59,32 @@ def init_db():
         except Exception as e:
             logger.warning(f"pgvector extension setup: {e}")
     Base.metadata.create_all(bind=engine)
+    # Apply any schema migrations for SQLite (add missing columns)
+    if _is_sqlite:
+        _apply_sqlite_migrations()
+
+
+def _apply_sqlite_migrations():
+    """Add missing columns to existing SQLite tables (idempotent)."""
+    from sqlalchemy import text, inspect
+    insp = inspect(engine)
+    migrations = [
+        ("dashboards", "workspace_id", "VARCHAR"),
+        ("dashboards", "updated_at", "DATETIME"),
+    ]
+    with engine.connect() as conn:
+        for table, col, col_type in migrations:
+            try:
+                existing = [c["name"] for c in insp.get_columns(table)]
+            except Exception:
+                continue
+            if col not in existing:
+                try:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
+                    conn.commit()
+                    logger.info(f"Migration: added column {table}.{col}")
+                except Exception as e:
+                    logger.warning(f"Migration skipped ({table}.{col}): {e}")
 
 
 class User(Base):
@@ -151,6 +177,7 @@ class Dashboard(Base):
     charts = Column(JSON, nullable=True)
     dataset_id = Column(String, ForeignKey("datasets.id"), nullable=True)
     user_id = Column(String, ForeignKey("users.id"))
+    workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=True)
     is_public = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

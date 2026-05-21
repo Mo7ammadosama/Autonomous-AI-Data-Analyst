@@ -31,7 +31,7 @@ class WebSocketClient {
       ? localStorage.getItem('access_token') ?? ''
       : ''
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const host = process.env.NEXT_PUBLIC_API_URL?.replace(/^https?:\/\//, '') ?? 'localhost:8001'
+    const host = process.env.NEXT_PUBLIC_API_URL?.replace(/^https?:\/\//, '') ?? 'localhost:8000'
     this.url = `${protocol}://${host}${path}?token=${token}`
     this.manualClose = false
     this._open()

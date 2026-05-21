@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { metricsApi } from '@/lib/api';
 import PageHeader from '@/components/ui/PageHeader';
 import StatCard from '@/components/ui/StatCard';
+import AppLayout from '@/components/layout/AppLayout';
 import { BarChart3, Database, MessageSquare, Bell, PanelsTopLeft, RefreshCw, Users, Server } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -58,7 +59,8 @@ export default function MetricsPage() {
   useEffect(() => { load(); }, []);
 
   return (
-    <div className="space-y-6">
+    <AppLayout>
+    <div className="p-6 space-y-6 max-w-7xl">
       <PageHeader
         title="Platform Metrics"
         description="Usage statistics and platform health"
@@ -162,5 +164,6 @@ export default function MetricsPage() {
         </div>
       ) : null}
     </div>
+    </AppLayout>
   );
 }

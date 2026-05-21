@@ -12,7 +12,7 @@ import {
 import { toast } from 'sonner';
 import { datasetsApi, agentApi } from '@/lib/api';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const getAuthToken = () => (typeof window !== 'undefined' ? localStorage.getItem('auth_token') || '' : '');
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';

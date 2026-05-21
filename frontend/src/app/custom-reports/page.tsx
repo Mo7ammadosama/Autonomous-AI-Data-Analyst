@@ -164,10 +164,17 @@ export default function CustomReportsPage() {
     }).catch(() => {});
   }, []);
 
+  // Normalize a report so sections is always an array
+  const normalizeReport = (r: any): Report => ({
+    ...r,
+    sections: Array.isArray(r.sections) ? r.sections : [],
+    generated_content: r.generated_content || {},
+  });
+
   const loadReports = async () => {
     try {
       const r = await customReportsApi.list();
-      setReports(r.data as Report[]);
+      setReports((r.data as any[]).map(normalizeReport));
     } catch {
       toast.error('Failed to load reports');
     }
@@ -183,7 +190,7 @@ export default function CustomReportsPage() {
         template_name: newTemplate || undefined,
         dataset_id: newDataset || undefined,
       });
-      const rep = r.data as Report;
+      const rep = normalizeReport(r.data);
       setReports(prev => [rep, ...prev]);
       setActiveReport(rep);
       setNewName('');
@@ -212,7 +219,7 @@ export default function CustomReportsPage() {
     setGenerating(true);
     try {
       const r = await customReportsApi.generate(activeReport.id);
-      const updated = r.data as Report;
+      const updated = normalizeReport(r.data);
       setActiveReport(updated);
       setReports(prev => prev.map(rep => rep.id === updated.id ? updated : rep));
       toast.success('Report generated!');
@@ -227,7 +234,7 @@ export default function CustomReportsPage() {
     if (!activeReport) return;
     try {
       const r = await customReportsApi.update(activeReport.id, { sections });
-      setActiveReport(r.data as Report);
+      setActiveReport(normalizeReport(r.data));
     } catch {
       toast.error('Failed to save sections');
     }
@@ -275,7 +282,7 @@ export default function CustomReportsPage() {
   const exportReport = async (fmt: 'html' | 'pdf' | 'json') => {
     if (!activeReport) return;
     const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : '';
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     try {
       const res = await fetch(
         `${API_BASE}/api/custom-reports/${activeReport.id}/export?fmt=${fmt}`,
@@ -352,10 +359,13 @@ export default function CustomReportsPage() {
           {/* Reports list */}
           <div className="flex-1 overflow-y-auto space-y-2">
             {reports.map(r => (
-              <button
+              <div
                 key={r.id}
-                className={`w-full text-left glass rounded-xl p-3 border transition-all ${activeReport?.id === r.id ? 'border-indigo-500/40' : 'border-transparent hover:border-white/10'}`}
-                onClick={() => setActiveReport(r)}
+                role="button"
+                tabIndex={0}
+                className={`w-full text-left glass rounded-xl p-3 border transition-all cursor-pointer ${activeReport?.id === r.id ? 'border-indigo-500/40' : 'border-transparent hover:border-white/10'}`}
+                onClick={() => setActiveReport(normalizeReport(r))}
+                onKeyDown={e => e.key === 'Enter' && setActiveReport(normalizeReport(r))}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -374,7 +384,7 @@ export default function CustomReportsPage() {
                     </button>
                   </div>
                 </div>
-              </button>
+              </div>
             ))}
             {reports.length === 0 && (
               <p className="text-xs text-slate-600 text-center py-4">No reports yet</p>

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -415,7 +415,7 @@ export const automlApi = {
 // WebSocket helper (returns native WebSocket)
 export const wsConnect = (path: string): WebSocket => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : '';
-  const wsBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001')
+  const wsBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000')
     .replace('https://', 'wss://')
     .replace('http://', 'ws://');
   return new WebSocket(`${wsBase}${path}?token=${token || ''}`);

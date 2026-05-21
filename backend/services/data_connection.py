@@ -120,7 +120,11 @@ def _build_engine(connection_type: str, host: str, port: int, database: str,
     else:
         raise ValueError(f"Unsupported SQL connection type: {connection_type}")
 
-    engine = create_engine(url, connect_args=connect_args, pool_timeout=10)
+    # pool_timeout is not supported by SQLite's SingletonThreadPool
+    engine_kwargs: dict = {"connect_args": connect_args}
+    if connection_type != "sqlite":
+        engine_kwargs["pool_timeout"] = 10
+    engine = create_engine(url, **engine_kwargs)
     _ENGINE_CACHE[cache_key] = (engine, now)
     return engine
 

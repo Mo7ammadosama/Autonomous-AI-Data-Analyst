@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { LayoutTemplate, Search, Star, TrendingUp, ChevronRight } from 'lucide-react'
 import { templatesApi, datasetsApi } from '@/lib/api'
+import AppLayout from '@/components/layout/AppLayout'
 
 interface Template {
   id: string
@@ -82,12 +83,15 @@ export default function TemplatesPage() {
   }
 
   if (loading) return (
+    <AppLayout>
     <div className="flex items-center justify-center h-64">
       <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600" />
     </div>
+    </AppLayout>
   )
 
   return (
+    <AppLayout>
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
@@ -254,5 +258,6 @@ export default function TemplatesPage() {
         </div>
       )}
     </div>
+    </AppLayout>
   )
 }

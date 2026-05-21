@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { webhooksApi } from '@/lib/api';
 import PageHeader from '@/components/ui/PageHeader';
+import AppLayout from '@/components/layout/AppLayout';
 import { Webhook, Plus, Trash2, Play, CheckCircle, XCircle, AlertCircle, RefreshCw, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -86,7 +87,8 @@ export default function WebhooksPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <AppLayout>
+    <div className="p-6 space-y-6 max-w-5xl">
       <PageHeader
         title="Webhooks"
         description="Receive HTTP callbacks when platform events occur"
@@ -225,5 +227,6 @@ export default function WebhooksPage() {
         </div>
       )}
     </div>
+    </AppLayout>
   );
 }

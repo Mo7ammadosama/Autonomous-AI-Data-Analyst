@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { notificationsApi } from '@/lib/api';
 import PageHeader from '@/components/ui/PageHeader';
+import AppLayout from '@/components/layout/AppLayout';
 import { Activity, Filter, RefreshCw, Database, BarChart2, Bell, MessageSquare, Settings, File } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -60,7 +61,8 @@ export default function ActivityPage() {
   useEffect(() => { load(); }, [load]);
 
   return (
-    <div className="space-y-6">
+    <AppLayout>
+    <div className="p-6 space-y-6 max-w-5xl">
       <PageHeader
         title="Activity Feed"
         description="Your recent platform activity and audit log"
@@ -142,5 +144,6 @@ export default function ActivityPage() {
         )}
       </div>
     </div>
+    </AppLayout>
   );
 }

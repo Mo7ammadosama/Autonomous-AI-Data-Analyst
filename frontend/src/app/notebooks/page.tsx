@@ -13,11 +13,16 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
-const authHeaders = () => ({
-  Authorization: `Bearer ${localStorage.getItem('auth_token') || ''}`,
-  'Content-Type': 'application/json',
-});
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const authHeaders = () => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+  // Guard against literal string "null" stored in localStorage
+  const validToken = token && token !== 'null' && token !== 'undefined' ? token : '';
+  return {
+    Authorization: `Bearer ${validToken}`,
+    'Content-Type': 'application/json',
+  };
+};
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type CellType = 'markdown' | 'data' | 'ai_prompt' | 'code' | 'chart';
