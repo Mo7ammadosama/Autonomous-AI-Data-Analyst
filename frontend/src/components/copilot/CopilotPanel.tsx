@@ -145,8 +145,15 @@ export default function CopilotPanel({ onClose }: Props) {
         });
       };
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-        || 'Failed to start analysis';
+      const e = err as { response?: { status?: number; data?: { detail?: string } } };
+      const status = e?.response?.status;
+      const detail = e?.response?.data?.detail || '';
+      const isAiKeyMissing =
+        status === 402 ||
+        (status === 400 && /credit|api.?key|quota|billing/i.test(detail));
+      const msg = isAiKeyMissing
+        ? 'AI features require an API key. Set ANTHROPIC_API_KEY in your backend .env file.'
+        : detail || 'Failed to start analysis';
       setStatus('failed');
       setErrorMsg(msg);
     }

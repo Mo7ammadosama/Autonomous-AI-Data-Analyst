@@ -480,12 +480,20 @@ function ChatPageInner() {
       ]);
     } catch (err: any) {
       const errId = `err-${Date.now()}`;
+      const status = err?.response?.status;
+      const detail = err?.response?.data?.detail || '';
+      const isAiKeyMissing =
+        status === 402 ||
+        (status === 400 && /credit|api.?key|quota|billing/i.test(detail));
+      const errorContent = isAiKeyMissing
+        ? 'AI features require an API key. Set ANTHROPIC_API_KEY in your backend .env file.'
+        : detail || 'Something went wrong. Please try again.';
       setMessages(prev => [
         ...prev.filter(m => m.id !== 'thinking'),
         {
           id: errId,
           role: 'assistant',
-          content: err?.response?.data?.detail || 'Something went wrong. Please try again.',
+          content: errorContent,
           error: true,
           created_at: new Date().toISOString(),
         },

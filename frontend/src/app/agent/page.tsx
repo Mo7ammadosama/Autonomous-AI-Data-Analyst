@@ -411,7 +411,15 @@ function AgentPageInner() {
       setCurrentRunId(id);
       openStream(id);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to start agent';
+      const e = err as { response?: { status?: number; data?: { detail?: string } } };
+      const status = e?.response?.status;
+      const detail = e?.response?.data?.detail || '';
+      const isAiKeyMissing =
+        status === 402 ||
+        (status === 400 && /credit|api.?key|quota|billing/i.test(detail));
+      const msg = isAiKeyMissing
+        ? 'AI features require an API key. Set ANTHROPIC_API_KEY in your backend .env file.'
+        : detail || 'Failed to start agent';
       toast.error(msg);
       setStatus('failed');
       setRunning(false);
