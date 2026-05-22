@@ -205,7 +205,14 @@ def generate_recommendations(
                 user=f"Finding: {top['title']}\nDescription: {top['description']}",
                 max_tokens=150,
             )
-            if enhanced_action and len(enhanced_action) > 20:
+            # Validate: reject generic greetings or off-topic responses from rule-based fallback
+            _bad_phrases = ("hello", "hi there", "i'm your ai", "i am your ai", "how are you")
+            _is_valid = (
+                enhanced_action
+                and len(enhanced_action) > 20
+                and not any(p in enhanced_action.lower()[:40] for p in _bad_phrases)
+            )
+            if _is_valid:
                 all_recs[0]["ai_action"] = enhanced_action
         except Exception as e:
             logger.warning(f"LLM recommendation enhancement failed: {e}")

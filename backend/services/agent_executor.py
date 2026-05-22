@@ -1193,7 +1193,17 @@ class DataAnalystAgent:
                 continue
             except Exception as exc:
                 logger.error(f"LLM call failed at step {i}: {exc}")
-                final_summary = f"LLM error: {exc}"
+                exc_str = str(exc)
+                if "WinError" in exc_str or "ConnectionRefusedError" in exc_str or "Errno 111" in exc_str or "Connection refused" in exc_str:
+                    final_summary = (
+                        "⚠️ AI Service Unavailable\n\n"
+                        "The AI analysis engine could not connect to a language model. "
+                        "To fix this, go to **Settings → AI Configuration** and either:\n\n"
+                        "1. Add an **OpenAI API key** to use cloud-based AI (recommended).\n"
+                        "2. Install and start **Ollama** locally, then enable \"Use Local Ollama\"."
+                    )
+                else:
+                    final_summary = f"LLM error: {exc}"
                 break
 
             thought = parsed.get("thought", "")

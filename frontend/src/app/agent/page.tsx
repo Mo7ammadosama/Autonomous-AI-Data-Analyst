@@ -924,6 +924,38 @@ function AgentPageInner() {
                 );
               }
 
+              // Check for connection / LLM errors before rendering raw markdown
+              const isConnectionError =
+                summary.includes('WinError') ||
+                summary.includes('[Errno 111]') ||
+                summary.includes('Connection refused') ||
+                (summary.includes('LLM error') && (summary.includes('connect') || summary.includes('refused')));
+
+              if (isConnectionError) {
+                return (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                      <p className="text-sm font-semibold text-amber-300">AI Service Unavailable</p>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      The AI analysis engine could not connect to a language model. To fix this, go to{' '}
+                      <strong className="text-white">Settings → AI Configuration</strong> and either:
+                    </p>
+                    <div className="space-y-2 text-xs text-slate-400">
+                      <div className="flex gap-2">
+                        <span className="text-indigo-400 font-bold shrink-0">1.</span>
+                        <span>Add an <strong className="text-white">OpenAI API key</strong> to use cloud-based AI (recommended).</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-indigo-400 font-bold shrink-0">2.</span>
+                        <span>Install and start <strong className="text-white">Ollama</strong> locally, then enable &quot;Use Local Ollama&quot;.</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
               // Fallback: plain markdown
               return (
                 <div>
