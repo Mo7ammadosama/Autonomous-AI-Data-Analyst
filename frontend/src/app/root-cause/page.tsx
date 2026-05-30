@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 import AppLayout from '@/components/layout/AppLayout';
-import { SearchCode, Play, RefreshCw, ChevronDown, TrendingDown, TrendingUp, Clock } from 'lucide-react';
+import { SearchCode, Play, RefreshCw, ChevronDown, TrendingDown, TrendingUp, Clock, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { datasetsApi, rcaApi } from '@/lib/api';
 import dynamic from 'next/dynamic';
@@ -39,6 +40,7 @@ export default function RootCausePage() {
   const [period, setPeriod] = useState('month');
   const [running, setRunning] = useState(false);
   const [loadingColumns, setLoadingColumns] = useState(false);
+  const [loadingRca, setLoadingRca] = useState(false);
   const [currentRca, setCurrentRca] = useState<RCAResult | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -241,9 +243,18 @@ export default function RootCausePage() {
                 <SearchCode className="w-4 h-4 text-indigo-400" />
                 AI Explanation
               </h3>
-              <div className="text-slate-300 text-sm leading-relaxed prose prose-invert prose-sm max-w-none"
-                dangerouslySetInnerHTML={{ __html: currentRca.narrative?.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>') || '' }}
-              />
+              {loadingRca ? (
+                <div className="flex items-center gap-2 text-slate-400 text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+                  Loading explanation…
+                </div>
+              ) : currentRca.narrative ? (
+                <div className="text-slate-300 text-sm leading-relaxed prose prose-invert prose-sm max-w-none">
+                  <ReactMarkdown>{currentRca.narrative}</ReactMarkdown>
+                </div>
+              ) : (
+                <p className="text-slate-500 text-sm">No explanation available for this analysis.</p>
+              )}
             </div>
 
             {/* Top drivers */}
@@ -275,13 +286,27 @@ export default function RootCausePage() {
         {/* History */}
         {history.length > 0 && !currentRca && (
           <div className="glass rounded-2xl p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">Recent Analyses</h2>
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              Recent Analyses
+              {loadingRca && <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />}
+            </h2>
             <div className="space-y-2">
               {history.slice(0, 10).map(h => (
                 <button
                   key={h.id}
-                  onClick={() => setCurrentRca(h)}
-                  className="w-full flex items-center gap-4 p-3 rounded-xl glass-hover text-left"
+                  disabled={loadingRca}
+                  onClick={async () => {
+                    setLoadingRca(true);
+                    try {
+                      const res = await rcaApi.get(h.id);
+                      setCurrentRca(res.data);
+                    } catch {
+                      setCurrentRca(h);
+                    } finally {
+                      setLoadingRca(false);
+                    }
+                  }}
+                  className="w-full flex items-center gap-4 p-3 rounded-xl glass-hover text-left disabled:opacity-60"
                 >
                   <Clock className="w-4 h-4 text-slate-500 flex-shrink-0" />
                   <span className="text-slate-200 text-sm font-medium">{h.metric_column}</span>

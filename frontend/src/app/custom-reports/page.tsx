@@ -342,9 +342,12 @@ export default function CustomReportsPage() {
               onChange={e => setNewDataset(e.target.value)}
             >
               <option value="">— dataset —</option>
-              {datasets.filter(d => d.status === 'ready').map(d => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
+              {datasets
+                .filter(d => d.status === 'ready')
+                .filter((d, i, self) => self.findIndex(x => x.id === d.id) === i)
+                .map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
             </select>
             <button
               className="btn-primary flex items-center justify-center gap-2 text-sm"

@@ -74,10 +74,12 @@ class AutoMLService:
         # Drop all-null columns, fill remaining NaN with 0
         feature_df = feature_df.dropna(axis=1, how="all").fillna(0)
 
-        # Encode categorical feature columns with LabelEncoder
+        # Encode categorical feature columns with LabelEncoder — save each encoder
+        cat_encoders: Dict[str, Any] = {}
         for col in feature_df.select_dtypes(include=["object", "category"]).columns:
             le = _LE()
             feature_df[col] = le.fit_transform(feature_df[col].astype(str))
+            cat_encoders[col] = le
 
         if feature_df.shape[1] == 0:
             raise ValueError("No usable numeric/categorical features found after preprocessing.")
@@ -87,14 +89,33 @@ class AutoMLService:
             le = _LE()
             y = pd.Series(le.fit_transform(y.astype(str)), name=target_column)
 
-        X, feature_names = self._preprocess(feature_df)
+        X, feature_names, preprocessor = self._preprocess(feature_df)
+
+        # Capture original input column names and per-column stats BEFORE sklearn scaling.
+        # These are stored independently of feature_importance so slider UI works for all
+        # model types (including LinearRegression which has no feature_importances_).
+        input_feature_names = feature_df.columns.tolist()
+        feature_stats: Dict[str, Any] = {}
+        for col in input_feature_names:
+            col_data = feature_df[col].dropna()
+            if len(col_data) > 0 and np.issubdtype(col_data.dtype, np.number):
+                feature_stats[col] = {
+                    "min": float(col_data.min()),
+                    "max": float(col_data.max()),
+                    "mean": float(col_data.mean()),
+                    "std": float(col_data.std()) if len(col_data) > 1 else 0.0,
+                }
 
         if task_type == "classification":
-            return self._train_classification(X, y, feature_names, job_id)
+            result = self._train_classification(X, y, feature_names, job_id, preprocessor, cat_encoders)
         elif task_type == "regression":
-            return self._train_regression(X, y, feature_names, job_id)
+            result = self._train_regression(X, y, feature_names, job_id, preprocessor, cat_encoders)
         else:
-            return self._train_clustering(X, feature_names, job_id)
+            result = self._train_clustering(X, feature_names, job_id, preprocessor, cat_encoders)
+
+        result["feature_names"] = input_feature_names
+        result["feature_stats"] = feature_stats
+        return result
 
     # ── Preprocessing ────────────────────────────────────────────
 
@@ -137,11 +158,11 @@ class AutoMLService:
             enc = preprocessor.named_transformers_["cat"]["encoder"]
             names += list(enc.get_feature_names_out(categorical_cols))
 
-        return X, names
+        return X, names, preprocessor
 
     # ── Classification ───────────────────────────────────────────
 
-    def _train_classification(self, X, y, feature_names: List[str], job_id: str) -> Dict[str, Any]:
+    def _train_classification(self, X, y, feature_names: List[str], job_id: str, preprocessor: Any, cat_encoders: Dict[str, Any]) -> Dict[str, Any]:
         from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
         from sklearn.linear_model import LogisticRegression
         from sklearn.model_selection import cross_val_score
@@ -196,9 +217,15 @@ class AutoMLService:
             "index": int(i),
         } for i, p in enumerate(y_pred[:10])]
 
-        # Persist
+        # Persist model + preprocessing pipeline so predict() can replay the same transforms
         model_path = os.path.join(MODELS_DIR, f"{job_id}.pkl")
-        joblib.dump({"model": best_model, "label_encoder": le, "task_type": "classification"}, model_path)
+        joblib.dump({
+            "model": best_model,
+            "label_encoder": le,
+            "task_type": "classification",
+            "preprocessor": preprocessor,
+            "cat_encoders": cat_encoders,
+        }, model_path)
 
         return {
             "best_model": best_name,
@@ -213,7 +240,7 @@ class AutoMLService:
 
     # ── Regression ───────────────────────────────────────────────
 
-    def _train_regression(self, X, y, feature_names: List[str], job_id: str) -> Dict[str, Any]:
+    def _train_regression(self, X, y, feature_names: List[str], job_id: str, preprocessor: Any, cat_encoders: Dict[str, Any]) -> Dict[str, Any]:
         from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
         from sklearn.linear_model import LinearRegression
         from sklearn.model_selection import cross_val_score
@@ -260,7 +287,12 @@ class AutoMLService:
         sample = [{"actual": float(a), "predicted": float(p)} for a, p in zip(y_num[:10], y_pred[:10])]
 
         model_path = os.path.join(MODELS_DIR, f"{job_id}.pkl")
-        joblib.dump({"model": best_model, "task_type": "regression"}, model_path)
+        joblib.dump({
+            "model": best_model,
+            "task_type": "regression",
+            "preprocessor": preprocessor,
+            "cat_encoders": cat_encoders,
+        }, model_path)
 
         return {
             "best_model": best_name,
@@ -274,7 +306,7 @@ class AutoMLService:
 
     # ── Clustering ───────────────────────────────────────────────
 
-    def _train_clustering(self, X, feature_names: List[str], job_id: str) -> Dict[str, Any]:
+    def _train_clustering(self, X, feature_names: List[str], job_id: str, preprocessor: Any, cat_encoders: Dict[str, Any]) -> Dict[str, Any]:
         from sklearn.cluster import KMeans
         from sklearn.metrics import silhouette_score
         import joblib
@@ -299,7 +331,12 @@ class AutoMLService:
         cluster_sizes = {int(c): int((labels == c).sum()) for c in range(best_k)}
 
         model_path = os.path.join(MODELS_DIR, f"{job_id}.pkl")
-        joblib.dump({"model": km, "task_type": "clustering"}, model_path)
+        joblib.dump({
+            "model": km,
+            "task_type": "clustering",
+            "preprocessor": preprocessor,
+            "cat_encoders": cat_encoders,
+        }, model_path)
 
         return {
             "best_model": f"KMeans (k={best_k})",
@@ -322,11 +359,41 @@ class AutoMLService:
         artifact = joblib.load(model_path)
         model = artifact["model"]
         task_type = artifact.get("task_type", "classification")
+        preprocessor = artifact.get("preprocessor")
+        cat_encoders: Dict[str, Any] = artifact.get("cat_encoders", {})
 
         df = pd.DataFrame(records)
-        # Simple numeric-only preprocessing for inference
-        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        X = df[numeric_cols].fillna(0).values if numeric_cols else np.zeros((len(df), 1))
+
+        if preprocessor is not None:
+            # Replay the same preprocessing steps that were applied during training:
+
+            # 1. Drop datetime columns
+            date_cols = df.select_dtypes(include=["datetime64"]).columns.tolist()
+            if date_cols:
+                df = df.drop(columns=date_cols)
+
+            # 2. Drop all-null columns, fill remaining NaN with 0
+            df = df.dropna(axis=1, how="all").fillna(0)
+
+            # 3. Apply saved LabelEncoders so categorical cols become integers
+            for col, le in cat_encoders.items():
+                if col in df.columns:
+                    known = set(le.classes_)
+                    # Map unseen values to the first known class to avoid transform errors
+                    df[col] = df[col].astype(str).apply(
+                        lambda v, _known=known, _cls=le.classes_: v if v in _known else _cls[0]
+                    )
+                    df[col] = le.transform(df[col])
+                else:
+                    # Column was present during training but missing in input — fill with 0
+                    df[col] = 0
+
+            # 4. Apply the full ColumnTransformer fitted during training
+            X = preprocessor.transform(df)
+        else:
+            # Legacy fallback for artifacts saved before this fix
+            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+            X = df[numeric_cols].fillna(0).values if numeric_cols else np.zeros((len(df), 1))
 
         preds = model.predict(X)
 

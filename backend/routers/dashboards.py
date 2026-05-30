@@ -57,6 +57,7 @@ def _dashboard_dict(d: Dashboard) -> dict:
         "title": d.title,
         "description": d.description,
         "charts": d.charts,
+        "chart_count": len(d.charts) if d.charts else 0,
         "layout": d.layout,
         "dataset_id": d.dataset_id,
         "is_public": d.is_public,

@@ -210,23 +210,25 @@ def get_model_features(
     if job.status != "done":
         raise HTTPException(status_code=400, detail="Model is not trained yet")
 
+    result_data = job.result_data or {}
+    # Tree-based models (RandomForest, GradientBoosting) populate feature_importance;
+    # LinearRegression does not. Fall back to the feature_names stored during training
+    # so sliders appear for every model type.
     feature_names = list((job.feature_importance or {}).keys())
-    result_data = job.result_data or []
+    if not feature_names:
+        feature_names = result_data.get("feature_names", [])
+    feature_stats = result_data.get("feature_stats", {})
 
     features_meta = []
-    import numpy as np
     for feat in feature_names:
-        vals = [row[feat] for row in result_data if feat in row and isinstance(row[feat], (int, float))]
-        if vals:
-            features_meta.append({
-                "name": feat,
-                "min": float(np.min(vals)),
-                "max": float(np.max(vals)),
-                "mean": float(np.mean(vals)),
-                "std": float(np.std(vals)),
-            })
-        else:
-            features_meta.append({"name": feat, "min": 0, "max": 100, "mean": 50, "std": 10})
+        stats = feature_stats.get(feat, {})
+        features_meta.append({
+            "name": feat,
+            "min": stats.get("min", 0.0),
+            "max": stats.get("max", 100.0),
+            "mean": stats.get("mean", 50.0),
+            "std": stats.get("std", 10.0),
+        })
 
     return {
         "automl_job_id": automl_job_id,

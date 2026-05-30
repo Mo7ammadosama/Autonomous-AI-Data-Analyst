@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap, TrendingUp, TrendingDown, AlertTriangle, Trophy,
@@ -136,9 +137,9 @@ function InsightCard({ insight, onRead }: { insight: ProactiveInsight; onRead: (
               )}
             </div>
 
-            <p className="text-sm text-gray-300 leading-snug line-clamp-2">
-              {insight.narrative}
-            </p>
+            <div className="text-sm text-gray-300 leading-snug line-clamp-2 prose prose-invert prose-sm max-w-none">
+              <ReactMarkdown>{insight.narrative || ''}</ReactMarkdown>
+            </div>
 
             <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
               <span className="flex items-center gap-1">

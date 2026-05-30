@@ -439,6 +439,38 @@ class LLMRouter:
         if "code" in s_low or "python" in s_low:
             return "result = df.describe()\nprint(result)"
 
+        # ── Root cause analysis narrative ─────────────────────────────
+        if "root cause" in s_low:
+            metric_match = _re.search(r"metric ['\"]([^'\"]+)['\"]", user)
+            change_match = _re.search(r"(increased|decreased) by ([\d.]+)%", user)
+            drivers_match = _re.search(r"Top correlated variables:\s*(.+?)(?:\n|$)", user)
+            segments_match = _re.search(r"Most affected segments:\s*(.+?)(?:\n|$)", user)
+            metric_name = metric_match.group(1) if metric_match else "the metric"
+            direction = change_match.group(1) if change_match else "changed"
+            change_val = change_match.group(2) if change_match else ""
+            drivers = drivers_match.group(1).strip() if drivers_match else "no strong correlating variables identified"
+            segments = segments_match.group(1).strip() if segments_match else "no significant segment variations"
+            change_str = f" by **{change_val}%**" if change_val else ""
+            return (
+                f"**{metric_name}** has {direction}{change_str} over the analysis period. "
+                f"The most correlated factors are: {drivers}. "
+                f"Segment analysis highlights: {segments}. "
+                "Investigate these variables for the same time period to identify causal relationships."
+            )
+
+        # ── Business recommendation ───────────────────────────────────
+        if "business analyst" in s_low or ("recommendation" in s_low and "finding" in u_low):
+            finding_match = _re.search(r"Finding:\s*(.+?)(?:\n|$)", user)
+            desc_match = _re.search(r"Description:\s*(.+?)(?:\n|$)", user)
+            finding = finding_match.group(1).strip() if finding_match else ""
+            desc = desc_match.group(1).strip() if desc_match else ""
+            if finding:
+                desc_snippet = (desc[:80] + "…") if desc and len(desc) > 80 else desc
+                return (
+                    f"For '{finding}': {desc_snippet or 'Review the underlying data for this trend.'} "
+                    "Implement targeted corrective actions and monitor the metric weekly to track improvement."
+                )
+
         # ── Narrative / insight generation ───────────────────────────
         if any(k in s_low for k in ("insight", "narrative", "story", "analyst", "analysis")):
             return self._build_narrative_from_context(user)
@@ -472,8 +504,8 @@ class LLMRouter:
             elif low.startswith("-") and ":" in line:
                 insights.append(line.strip("- ").strip())
 
-        # Greeting / conversational
-        if not question or question.lower() in ("hi", "hello", "hey", "how are you", "help"):
+        # Greeting / conversational — only trigger for explicit greetings, not missing question
+        if question and question.lower() in ("hi", "hello", "hey", "how are you", "help"):
             return (
                 "Hello! I'm your AI data analyst. I can help you explore your dataset — "
                 "try asking me things like:\n"

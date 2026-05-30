@@ -316,8 +316,12 @@ export default function AutonomousPage() {
                           <span className={`text-xs font-bold uppercase ${priorityColor}`}>{rec.priority}</span>
                           <span className="text-sm font-semibold text-white">{rec.title}</span>
                         </div>
-                        <p className="text-xs text-slate-400">{rec.description}</p>
-                        <div className="text-xs text-violet-300 font-medium">→ {rec.ai_action || rec.action}</div>
+                        <div className="text-xs text-slate-400 prose prose-invert prose-xs max-w-none">
+                          <ReactMarkdown>{rec.description || ''}</ReactMarkdown>
+                        </div>
+                        <div className="text-xs text-violet-300 font-medium prose prose-invert prose-xs max-w-none">
+                          → <ReactMarkdown>{rec.ai_action || rec.action || ''}</ReactMarkdown>
+                        </div>
                         {rec.expected_impact && <div className="text-xs text-slate-500">Impact: {rec.expected_impact}</div>}
                       </div>
                     );
