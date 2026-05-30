@@ -354,13 +354,12 @@ def delete_report(
 
 def _ai_generate_sections(report: CustomReport, db: Session) -> dict:
     """
-    Call OpenAI to fill each report section with AI-generated content.
+    Fill each report section with AI-generated content via llm_router.
+    Routes to the best available provider (Anthropic, OpenAI, etc.).
     Returns {section_id: {"body": "<markdown>"}}
     """
     import os
-    from openai import OpenAI
-
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+    from services.llm_router import llm_router
 
     # Build context about dataset if available
     dataset_context = ""
@@ -392,6 +391,12 @@ def _ai_generate_sections(report: CustomReport, db: Session) -> dict:
                 f"Sample insights: {tmpl.get('sample_insights', [])}\n"
             )
 
+    system_prompt = (
+        "You are a professional data analyst writing a business report. "
+        "Write in professional markdown, be specific and data-driven (150–300 words). "
+        "If real data is unavailable, use realistic placeholder values in [brackets]."
+    )
+
     generated: dict[str, Any] = {}
 
     for section in (report.sections or []):
@@ -403,25 +408,21 @@ def _ai_generate_sections(report: CustomReport, db: Session) -> dict:
             # Non-text sections are populated by code/charts, not LLM
             continue
 
-        prompt = (
-            f"You are a professional data analyst writing a business report.\n"
+        user_prompt = (
             f"Report name: {report.name}\n"
             f"Domain: {report.domain or 'general'}\n"
             f"{dataset_context}"
             f"{template_context}"
-            f"\nWrite the '{section_title}' section of this report in professional markdown. "
-            f"Be specific, data-driven, and concise (150–300 words). "
-            f"If you don't have real data, use realistic placeholder values in [brackets]."
+            f"\nWrite the '{section_title}' section of this report."
         )
 
         try:
-            resp = client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
+            body = llm_router.complete(
+                system=system_prompt,
+                user=user_prompt,
                 max_tokens=600,
+                task_type="report",
             )
-            body = resp.choices[0].message.content or ""
         except Exception as exc:
             body = f"*[Generation failed: {exc}]*"
 

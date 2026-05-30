@@ -33,6 +33,8 @@ GEMINI_API_KEY     = os.getenv("GEMINI_API_KEY", "")
 OLLAMA_BASE_URL    = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL       = os.getenv("OLLAMA_MODEL", "llama3")
 USE_OLLAMA         = os.getenv("USE_OLLAMA", "false").lower() == "true"
+# Allow overriding the Anthropic model via env (defaults to haiku for cost efficiency)
+ANTHROPIC_LLM_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 
 # Redis for LLM response caching (optional)
 REDIS_URL          = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -92,10 +94,10 @@ ALL_MODELS: Dict[str, ModelConfig] = {
         strengths=["default", "chat", "summary", "insight", "fast"],
     ),
     "claude-sonnet": ModelConfig(
-        name="Claude Sonnet",
+        name="Claude (Anthropic)",
         provider="anthropic",
-        model_id="claude-sonnet-4-5",
-        cost_per_1k_tokens=0.003,
+        model_id=ANTHROPIC_LLM_MODEL,
+        cost_per_1k_tokens=0.00025,
         max_context=200_000,
         strengths=["narrative", "story", "explain", "report", "root_cause"],
     ),

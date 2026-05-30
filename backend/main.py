@@ -7,10 +7,11 @@ import time
 import logging
 from contextlib import asynccontextmanager
 
-# Load .env file before anything else
+# Load .env file before anything else (override=True ensures .env wins over
+# any stale/empty shell env vars that may be set in the parent process)
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(override=True)
 except ImportError:
     pass  # python-dotenv not installed — env vars must be set manually
 
