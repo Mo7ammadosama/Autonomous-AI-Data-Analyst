@@ -282,7 +282,7 @@ export default function CustomReportsPage() {
   const exportReport = async (fmt: 'html' | 'pdf' | 'json') => {
     if (!activeReport) return;
     const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : '';
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
     try {
       const res = await fetch(
         `${API_BASE}/api/custom-reports/${activeReport.id}/export?fmt=${fmt}`,

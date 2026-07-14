@@ -139,6 +139,10 @@ class LLMRouter:
         self._failure_counts: Dict[str, int] = {}
         self._circuit_open_until: Dict[str, datetime] = {}
 
+        # Name of the model that actually served the most recent completion —
+        # lets callers report the real provider instead of a hardcoded label.
+        self.last_model_used: str = ""
+
         # Detect which providers are actually configured
         self._provider_available: Dict[str, bool] = {
             "openai":    bool(OPENAI_API_KEY),
@@ -271,6 +275,7 @@ class LLMRouter:
                 result = self._rule_based(system, user)
 
             self._record_success(cfg.model_id)
+            self.last_model_used = cfg.name
             if use_cache and result:
                 self._set_cached(system, user, result)
             self._log_usage(cfg, system, user, result, time.time() - start, success=True)
@@ -293,15 +298,20 @@ class LLMRouter:
                 continue
             try:
                 if cfg.provider == "openai":
-                    return self._complete_openai(cfg.model_id, system, user, max_tokens)
+                    result = self._complete_openai(cfg.model_id, system, user, max_tokens)
                 elif cfg.provider == "anthropic":
-                    return self._complete_anthropic(cfg.model_id, system, user, max_tokens)
+                    result = self._complete_anthropic(cfg.model_id, system, user, max_tokens)
                 elif cfg.provider == "google":
-                    return self._complete_google(cfg.model_id, system, user, max_tokens)
+                    result = self._complete_google(cfg.model_id, system, user, max_tokens)
                 elif cfg.provider == "ollama":
-                    return self._complete_ollama(system, user, max_tokens)
+                    result = self._complete_ollama(system, user, max_tokens)
+                else:
+                    continue
+                self.last_model_used = cfg.name
+                return result
             except Exception as e:
                 logger.error(f"Fallback {cfg.name} failed: {e}")
+        self.last_model_used = "Rule-based"
         return self._rule_based(system, user)
 
     # ── Provider implementations ─────────────────────────────────

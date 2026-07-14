@@ -6,7 +6,7 @@ import {
   X, Sparkles, Loader2, ExternalLink, AlertCircle,
   CheckCircle2, BarChart2, ChevronRight,
 } from 'lucide-react';
-import { agentApi, datasetsApi } from '@/lib/api';
+import { agentApi, datasetsApi, getErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -145,15 +145,15 @@ export default function CopilotPanel({ onClose }: Props) {
         });
       };
     } catch (err: unknown) {
-      const e = err as { response?: { status?: number; data?: { detail?: string } } };
+      const e = err as { response?: { status?: number } };
       const status = e?.response?.status;
-      const detail = e?.response?.data?.detail || '';
+      const detail = getErrorMessage(err, 'Failed to start analysis');
       const isAiKeyMissing =
         status === 402 ||
         (status === 400 && /credit|api.?key|quota|billing/i.test(detail));
       const msg = isAiKeyMissing
         ? 'AI features require an API key. Set ANTHROPIC_API_KEY in your backend .env file.'
-        : detail || 'Failed to start analysis';
+        : detail;
       setStatus('failed');
       setErrorMsg(msg);
     }

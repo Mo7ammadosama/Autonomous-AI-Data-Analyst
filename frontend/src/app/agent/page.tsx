@@ -10,9 +10,9 @@ import {
   X, Plus, History, Flame, Rocket, TrendingUp
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { datasetsApi, agentApi } from '@/lib/api';
+import { datasetsApi, agentApi, getErrorMessage } from '@/lib/api';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
 const getAuthToken = () => (typeof window !== 'undefined' ? localStorage.getItem('auth_token') || '' : '');
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -411,15 +411,15 @@ function AgentPageInner() {
       setCurrentRunId(id);
       openStream(id);
     } catch (err: unknown) {
-      const e = err as { response?: { status?: number; data?: { detail?: string } } };
+      const e = err as { response?: { status?: number } };
       const status = e?.response?.status;
-      const detail = e?.response?.data?.detail || '';
+      const detail = getErrorMessage(err, 'Failed to start agent');
       const isAiKeyMissing =
         status === 402 ||
         (status === 400 && /credit|api.?key|quota|billing/i.test(detail));
       const msg = isAiKeyMissing
         ? 'AI features require an API key. Set ANTHROPIC_API_KEY in your backend .env file.'
-        : detail || 'Failed to start agent';
+        : detail;
       toast.error(msg);
       setStatus('failed');
       setRunning(false);

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -74,6 +74,25 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+// FastAPI validation errors return `detail` as an array of
+// {type, loc, msg, input, ctx, url} objects rather than a string —
+// rendering that directly in JSX crashes React. Always route error
+// payloads through this before displaying them.
+export function getErrorMessage(err: unknown, fallback = 'Something went wrong'): string {
+  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  if (typeof detail === 'string' && detail) return detail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    return detail
+      .map((d) => (typeof d === 'string' ? d : d?.msg || JSON.stringify(d)))
+      .join('; ');
+  }
+  if (detail && typeof detail === 'object') {
+    return (detail as { msg?: string }).msg || JSON.stringify(detail);
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
+}
 
 // Auth
 export const authApi = {
@@ -415,7 +434,7 @@ export const automlApi = {
 // WebSocket helper (returns native WebSocket)
 export const wsConnect = (path: string): WebSocket => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : '';
-  const wsBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000')
+  const wsBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001')
     .replace('https://', 'wss://')
     .replace('http://', 'ws://');
   return new WebSocket(`${wsBase}${path}?token=${token || ''}`);

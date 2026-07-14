@@ -1,0 +1,384 @@
+{
+  "timestamp": "2026-05-21T19:40:13.706299",
+  "api_results": [
+    {
+      "endpoint": "/health",
+      "label": "Health check",
+      "status": "\u2705 200"
+    },
+    {
+      "endpoint": "/api/datasets/",
+      "label": "Datasets list",
+      "status": "\u2705 200"
+    },
+    {
+      "endpoint": "/api/metrics/",
+      "label": "Metrics list",
+      "status": "\u2705 200"
+    },
+    {
+      "endpoint": "/api/templates/",
+      "label": "Templates list",
+      "status": "\u2705 200"
+    },
+    {
+      "endpoint": "/docs",
+      "label": "API docs (Swagger)",
+      "status": "\u2705 200"
+    }
+  ],
+  "page_results": [
+    {
+      "path": "/",
+      "label": "Home / Landing",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\home.png",
+      "console_errors": []
+    },
+    {
+      "path": "/dashboard",
+      "label": "Dashboard",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\dashboard.png",
+      "console_errors": []
+    },
+    {
+      "path": "/datasets",
+      "label": "Datasets",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\datasets.png",
+      "console_errors": []
+    },
+    {
+      "path": "/autonomous",
+      "label": "Autonomous Agent",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\autonomous.png",
+      "console_errors": []
+    },
+    {
+      "path": "/chat",
+      "label": "Chat / NL Query",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\chat.png",
+      "console_errors": []
+    },
+    {
+      "path": "/agent",
+      "label": "Agent",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\agent.png",
+      "console_errors": []
+    },
+    {
+      "path": "/reports",
+      "label": "Reports",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\reports.png",
+      "console_errors": []
+    },
+    {
+      "path": "/custom-reports",
+      "label": "Custom Reports",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\custom-reports.png",
+      "console_errors": []
+    },
+    {
+      "path": "/notebooks",
+      "label": "Notebooks",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\notebooks.png",
+      "console_errors": []
+    },
+    {
+      "path": "/catalog",
+      "label": "Data Catalog",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\catalog.png",
+      "console_errors": []
+    },
+    {
+      "path": "/templates",
+      "label": "Templates",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\templates.png",
+      "console_errors": []
+    },
+    {
+      "path": "/metrics",
+      "label": "Metrics",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\metrics.png",
+      "console_errors": []
+    },
+    {
+      "path": "/webhooks",
+      "label": "Webhooks",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\webhooks.png",
+      "console_errors": []
+    },
+    {
+      "path": "/activity",
+      "label": "Activity",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\activity.png",
+      "console_errors": []
+    },
+    {
+      "path": "/settings",
+      "label": "Settings",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\settings.png",
+      "console_errors": []
+    },
+    {
+      "path": "/analytics",
+      "label": "Analytics",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\analytics.png",
+      "console_errors": []
+    },
+    {
+      "path": "/alerts",
+      "label": "Alerts",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\alerts.png",
+      "console_errors": []
+    },
+    {
+      "path": "/insights",
+      "label": "Insights",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\insights.png",
+      "console_errors": []
+    },
+    {
+      "path": "/explore",
+      "label": "Explore",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\explore.png",
+      "console_errors": []
+    },
+    {
+      "path": "/automl",
+      "label": "AutoML",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\automl.png",
+      "console_errors": []
+    },
+    {
+      "path": "/nl2sql",
+      "label": "NL2SQL",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\nl2sql.png",
+      "console_errors": []
+    },
+    {
+      "path": "/scheduled-reports",
+      "label": "Scheduled Reports",
+      "status": "\u2705 OK",
+      "issues": [],
+      "actions": [
+        "  CLICKED [DataMind AIanalyst.ai]",
+        "  CLICKED [AI Analysis]",
+        "  CLICKED [Insights]",
+        "  CLICKED [Build]",
+        "  CLICKED [Data]",
+        "  CLICKED [Settings]"
+      ],
+      "screenshot": "qa_screenshots\\scheduled-reports.png",
+      "console_errors": []
+    }
+  ]
+}

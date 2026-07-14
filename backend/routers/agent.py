@@ -254,7 +254,7 @@ def stream_agent_run(
     async def event_generator():
         last_step_count = 0
         polls = 0
-        max_polls = 180        # 180 × 1s = 3 min ceiling
+        max_polls = 600        # 600 × 1s = 10 min ceiling
         ping_every = 3         # send keepalive ping every N polls
 
         # Emit an init step immediately so the UI shows activity right away
@@ -322,7 +322,7 @@ def stream_agent_run(
             await asyncio.sleep(1)
             polls += 1
 
-        yield f"data: {json.dumps({'type': 'timeout', 'message': 'Stream timed out after 3 minutes'})}\n\n"
+        yield f"data: {json.dumps({'type': 'timeout', 'message': 'Stream timed out after 10 minutes'})}\n\n"
 
     return StreamingResponse(
         event_generator(),

@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
 const authHeaders = () => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
   // Guard against literal string "null" stored in localStorage

@@ -24,7 +24,13 @@ _ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 _ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 _OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 _OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-_AGENT_PROVIDER = os.getenv("AGENT_PROVIDER", "anthropic" if os.getenv("ANTHROPIC_API_KEY") else "ollama")
+_GROK_MODEL = os.getenv("GROK_MODEL", "grok-4.1-fast")
+_GROK_API_KEY = os.getenv("GROK_API_KEY", "")
+_GROK_BASE_URL = os.getenv("GROK_BASE_URL", "https://api.x.ai/v1")
+_AGENT_PROVIDER = os.getenv(
+    "AGENT_PROVIDER",
+    "anthropic" if _ANTHROPIC_API_KEY else "grok" if _GROK_API_KEY else "ollama",
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Result types
@@ -56,6 +62,37 @@ class AgentResult:
 #  JSON parser (robust — handles markdown fences and extra text)
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _extract_balanced_object(text: str, open_brace_idx: int) -> Optional[str]:
+    """Return the substring from `open_brace_idx` (a '{') to its matching '}',
+    correctly tracking nested objects/arrays and string contents. Non-greedy
+    regexes like `\\{.*?\\}` stop at the FIRST '}', which truncates any nested
+    object (e.g. a final_answer's action_input containing risk_matrix: {...}).
+    Returns None if no matching close brace is found (response was truncated).
+    """
+    depth = 0
+    in_string = False
+    escape = False
+    for i in range(open_brace_idx, len(text)):
+        ch = text[i]
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[open_brace_idx : i + 1]
+    return None
+
+
 def _parse_llm_response(raw: str) -> dict:
     """Parse LLM response as JSON, handling common formatting issues.
 
@@ -86,14 +123,17 @@ def _parse_llm_response(raw: str) -> dict:
     # 4. Regex fallback — extract thought and action at minimum
     thought_match = re.search(r'"thought"\s*:\s*"((?:[^"\\]|\\.)*)"', text, re.DOTALL)
     action_match = re.search(r'"action"\s*:\s*"([^"]+)"', text)
-    # Try to pull action_input as a sub-object
+    # Try to pull action_input as a sub-object using a balanced-brace scan —
+    # a naive non-greedy regex would truncate nested objects like risk_matrix.
     action_input: dict = {}
-    ai_match = re.search(r'"action_input"\s*:\s*(\{.*?\})', text, re.DOTALL)
-    if ai_match:
-        try:
-            action_input = json.loads(ai_match.group(1))
-        except json.JSONDecodeError:
-            pass
+    ai_key_match = re.search(r'"action_input"\s*:\s*\{', text)
+    if ai_key_match:
+        obj_str = _extract_balanced_object(text, ai_key_match.end() - 1)
+        if obj_str:
+            try:
+                action_input = json.loads(obj_str)
+            except json.JSONDecodeError:
+                pass
 
     if action_match:
         return {
@@ -121,7 +161,7 @@ You replace 3 data analysts at $150K/year each.
 MANDATORY ANALYSIS PROTOCOL:
 1. START every final answer with a "CEO Briefing" — exactly 2 sentences any CEO understands immediately
 2. Use BUSINESS language only: "Revenue declined 12% YoY" not "column sum decreased"
-3. Generate MINIMUM 3 charts: trend line + breakdown + comparison
+3. Generate EXACTLY 3 charts: trend line + breakdown + comparison — never a 4th
 4. Always include a "Risk Matrix" — quantify the financial consequence of inaction
 5. Always quantify impact with dollar amounts: "~$2.3M revenue risk if unaddressed"
 6. End with a structured "30-60-90 Day Action Plan" with specific, named actions
@@ -132,8 +172,10 @@ MANDATORY ANALYSIS PROTOCOL:
 At each step output EXACTLY this JSON (nothing else, no markdown fences):
 {"thought": "your McKinsey-level reasoning", "action": "tool_name", "action_input": {}}
 
-When analysis is complete, output:
-{"thought": "complete synthesis of findings", "action": "final_answer", "action_input": {
+When analysis is complete, output (keep "thought" to ONE short sentence here — do NOT
+recap a checklist of completed steps in thought, put ALL substance in action_input below;
+a verbose thought wastes output budget that the action_input JSON needs):
+{"thought": "ready to synthesize final answer", "action": "final_answer", "action_input": {
   "ceo_briefing": "2 sentences any CEO understands. Include the single most important number.",
   "executive_summary": "3-4 sentence board-level narrative with business context",
   "key_findings": [
@@ -160,7 +202,7 @@ When analysis is complete, output:
   "data_quality_notes": "Any caveats about data completeness"
 }}
 
-Available tools: assess_data_quality, clean_data, run_eda, detect_anomalies_advanced, execute_python, execute_sql, get_dataset_info, get_column_stats, auto_visualize, write_report_section, benchmark_industry, generate_action_plan, final_answer
+Available tools: assess_data_quality, clean_data, run_eda, detect_anomalies_advanced, execute_python, execute_sql, get_dataset_info, get_column_stats, auto_visualize, generate_report_tables, write_report_section, benchmark_industry, generate_action_plan, final_answer
 
 Tool usage:
 - assess_data_quality: {"dataset_id": "<id>"}
@@ -172,28 +214,47 @@ Tool usage:
 - execute_python: {"code": "<pandas/numpy/scipy/plotly code>", "dataset_id": "<id>"}
 - execute_sql: {"query": "<SQL SELECT only>", "connection_id": null}
 - auto_visualize: {"dataset_id": "<id>", "chart_type": "bar|line|scatter|histogram|pie|heatmap|box", "x_col": "<col>", "y_col": "<col>", "title": "<title>"}
+- generate_report_tables: {"dataset_id": "<id>"} — computes every breakdown/table needed for the
+  final report DIRECTLY via pandas aggregation (never call this more than once)
 - write_report_section: {"section": "<name>", "content": "<markdown>"}
 - benchmark_industry: {"metric_name": "<metric>", "your_value": <number>, "industry": "<retail|finance|healthcare|saas|manufacturing>"}
 - generate_action_plan: {"findings": ["finding1", "finding2"], "priority_area": "<area>", "budget_context": "<available|constrained|unknown>"}
 - final_answer: see structured format above
 
-MANDATORY 8-Step Data Analyst Workflow (follow in order when a dataset is provided):
-1. assess_data_quality — always first; identify data issues before any analysis
-2. clean_data — fix nulls, duplicates, whitespace; use strategy="auto"
-3. run_eda — full exploratory analysis: distributions, correlations, outliers
-4. detect_anomalies_advanced — flag statistical anomalies with business impact
-5. execute_python / get_column_stats — deep-dive analysis on specific questions
-6. auto_visualize — generate 3+ charts (trend, breakdown, comparison minimum)
-7. benchmark_industry — compare key metrics against industry benchmarks
-8. generate_action_plan → final_answer — structured McKinsey-style roadmap
+CRITICAL — NUMBERS MUST BE REAL, NEVER INVENTED:
+Every number, table, and percentage you present MUST come from the actual observation text of a
+tool call you made in THIS run (execute_python, run_eda, get_column_stats, generate_report_tables,
+etc). NEVER type a number from memory, pattern-matching, or "what sounds plausible" — if you did
+not see it in a tool observation above, you do not know it. When generate_report_tables has been
+called, its output is the AUTHORITATIVE ground truth for every country/scheme/category/channel/
+decline-reason figure — copy those numbers and tables verbatim into final_answer; do not
+recompute, round differently, or re-derive them yourself.
+
+MANDATORY 9-Step Data Analyst Workflow (follow in order when a dataset is provided).
+Each step has a hard call budget — do not exceed it, even if you feel more exploration would help:
+1. assess_data_quality (1 call) — always first; identify data issues before any analysis
+2. clean_data (1 call) — fix nulls, duplicates, whitespace; use strategy="auto"
+3. run_eda (1 call) — full exploratory analysis: distributions, correlations, outliers
+4. detect_anomalies_advanced (1 call) — flag statistical anomalies with business impact
+5. execute_python / get_column_stats (AT MOST 2 calls total) — deep-dive on specific questions only; do not repeat exploration you've already done
+6. auto_visualize (EXACTLY 3 calls) — trend, breakdown, comparison — no more, no fewer
+7. generate_report_tables (1 call) — computes the ground-truth tables for the final report; treat its output as authoritative and non-negotiable
+8. benchmark_industry (1 call) — compare key metrics against industry benchmarks
+9. generate_action_plan (1 call) → final_answer — structured roadmap using ONLY numbers already seen in tool observations
 
 Execution Rules:
-- ALWAYS follow the 8-step workflow above when a dataset_id is provided
-- Generate EXACTLY 3+ charts (trend, breakdown, comparison minimum)
+- ALWAYS follow the 9-step workflow above when a dataset_id is provided
+- Generate EXACTLY 3 charts via auto_visualize (trend, breakdown, comparison) — never a 4th
+- Cap deep-dive execute_python/get_column_stats at 2 calls combined — move on after that even if curious
+- ALWAYS call generate_report_tables exactly once before benchmark_industry
 - ALWAYS run benchmark_industry for key metrics
 - ALWAYS call generate_action_plan before final_answer
 - Every number needs dollar/percentage business context
-- Max 12 iterations — be thorough but efficient
+- Max 15 iterations total — this is a hard ceiling, not a target. Budget iterations so that
+  generate_report_tables, benchmark_industry, generate_action_plan, and final_answer are
+  GUARANTEED to fit in the last 4 iterations. If you reach iteration 10 and have not yet called
+  generate_report_tables, STOP all further exploration/visualization immediately and go straight
+  to generate_report_tables → benchmark_industry → generate_action_plan → final_answer.
 
 {memory_block}"""
 
@@ -217,6 +278,24 @@ def _build_system_prompt(memory_block: str = "") -> str:
 #  Tool implementations
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _read_dataset(file_path: str, **kwargs):
+    """Read a dataset file, dispatching to the correct pandas reader by extension."""
+    import pandas as pd
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext in (".xlsx", ".xls"):
+        return pd.read_excel(file_path, **kwargs)
+    return pd.read_csv(file_path, **kwargs)
+
+
+def _write_dataset(df, file_path: str) -> None:
+    """Write a dataset file, dispatching to the correct pandas writer by extension."""
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext in (".xlsx", ".xls"):
+        df.to_excel(file_path, index=False)
+    else:
+        df.to_csv(file_path, index=False)
+
+
 def _tool_get_dataset_info(dataset_id: str, db: Session) -> str:
     """Return schema, dtypes, and 3-row sample."""
     try:
@@ -231,7 +310,7 @@ def _tool_get_dataset_info(dataset_id: str, db: Session) -> str:
         if not os.path.exists(file_path):
             return f"File not found at {file_path}."
 
-        df = pd.read_csv(file_path, nrows=5)
+        df = _read_dataset(file_path, nrows=5)
         info = {
             "name": dataset.name,
             "rows": dataset.row_count,
@@ -255,7 +334,7 @@ def _tool_get_column_stats(dataset_id: str, columns: list[str], db: Session) -> 
         if not dataset:
             return f"Dataset {dataset_id} not found."
 
-        df = pd.read_csv(dataset.file_path, usecols=columns)
+        df = _read_dataset(dataset.file_path, usecols=columns)
         stats = df.describe(include="all").to_dict()
         return json.dumps(stats, default=str, indent=2)
     except Exception as exc:
@@ -273,7 +352,7 @@ def _tool_execute_python(code: str, dataset_id: Optional[str], db: Session) -> t
         try:
             dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
             if dataset and os.path.exists(dataset.file_path):
-                df = pd.read_csv(dataset.file_path)
+                df = _read_dataset(dataset.file_path)
                 df_csv = df.to_csv(index=False)
         except Exception as exc:
             logger.warning(f"Could not pre-load dataset for sandbox: {exc}")
@@ -373,7 +452,7 @@ def _tool_auto_visualize(
         if not os.path.exists(dataset.file_path):
             return "Dataset file not found.", []
 
-        df = pd.read_csv(dataset.file_path)
+        df = _read_dataset(dataset.file_path)
 
         chart_type = chart_type.lower()
         if chart_type == "bar":
@@ -427,7 +506,7 @@ def _tool_compare_periods(
         if not os.path.exists(dataset.file_path):
             return "Dataset file not found."
 
-        df = pd.read_csv(dataset.file_path)
+        df = _read_dataset(dataset.file_path)
 
         if date_column not in df.columns:
             return f"Column '{date_column}' not found. Available: {df.columns.tolist()}"
@@ -504,7 +583,7 @@ def _tool_detect_anomalies(dataset_id: str, columns: list[str], db: Session) -> 
         if not os.path.exists(dataset.file_path):
             return "Dataset file not found."
 
-        df = pd.read_csv(dataset.file_path)
+        df = _read_dataset(dataset.file_path)
 
         # If no columns specified, use all numeric columns
         if not columns:
@@ -622,7 +701,7 @@ def _tool_assess_data_quality(dataset_id: str, db: Session) -> str:
         if not os.path.exists(dataset.file_path):
             return "Dataset file not found on disk."
 
-        df = pd.read_csv(dataset.file_path)
+        df = _read_dataset(dataset.file_path)
         total_rows = len(df)
         total_cols = len(df.columns)
         total_cells = total_rows * total_cols
@@ -692,7 +771,7 @@ def _tool_clean_data(dataset_id: str, strategy: str, db: Session) -> tuple[str, 
         if not os.path.exists(dataset.file_path):
             return "Dataset file not found.", []
 
-        df = pd.read_csv(dataset.file_path)
+        df = _read_dataset(dataset.file_path)
         original_rows = len(df)
         changelog = []
 
@@ -738,8 +817,8 @@ def _tool_clean_data(dataset_id: str, strategy: str, db: Session) -> tuple[str, 
                 except Exception:
                     pass
 
-        # Save cleaned file to same path (overwrite)
-        df.to_csv(dataset.file_path, index=False)
+        # Save cleaned file to same path (overwrite), preserving original format
+        _write_dataset(df, dataset.file_path)
 
         # Update dataset metadata
         dataset.row_count = len(df)
@@ -774,7 +853,7 @@ def _tool_run_eda(dataset_id: str, db: Session) -> tuple[str, list[str]]:
         if not os.path.exists(dataset.file_path):
             return "Dataset file not found.", []
 
-        df = pd.read_csv(dataset.file_path)
+        df = _read_dataset(dataset.file_path)
         numeric_cols = df.select_dtypes(include="number").columns.tolist()
         cat_cols = df.select_dtypes(include="object").columns.tolist()
         date_cols = df.select_dtypes(include=["datetime64"]).columns.tolist()
@@ -869,7 +948,7 @@ def _tool_detect_anomalies_advanced(dataset_id: str, columns: list[str], db: Ses
         if not os.path.exists(dataset.file_path):
             return "Dataset file not found."
 
-        df = pd.read_csv(dataset.file_path)
+        df = _read_dataset(dataset.file_path)
         numeric_cols = columns if columns else df.select_dtypes(include="number").columns.tolist()
         numeric_cols = [c for c in numeric_cols if c in df.columns][:8]
 
@@ -927,6 +1006,271 @@ def _tool_detect_anomalies_advanced(dataset_id: str, columns: list[str], db: Ses
         return json.dumps(summary, default=str, indent=2)
     except Exception as exc:
         return f"detect_anomalies_advanced error: {exc}"
+
+
+def _find_col(columns: list[str], must_include: list[str], exclude: Optional[list[str]] = None) -> Optional[str]:
+    """Find the first column whose lowercased name contains every keyword in `must_include`
+    and none of `exclude`. Used to detect transaction-report columns (country, card scheme,
+    category, channel, status, decline reason, fraud flag, amount) across differently-named
+    datasets without hardcoding exact column names.
+    """
+    exclude = exclude or []
+    for c in columns:
+        lc = c.lower()
+        if all(k in lc for k in must_include) and not any(e in lc for e in exclude):
+            return c
+    return None
+
+
+def _tool_generate_report_tables(dataset_id: str, db: Session) -> tuple[str, str]:
+    """Compute every table/number needed for the final report directly via pandas
+    aggregation — the ONLY source of truth for the delivered report. Returns
+    (observation_for_llm, full_markdown_report). The caller stores full_markdown_report
+    on the agent instance and substitutes it for the final answer verbatim, so the LLM
+    never gets a chance to mistype or invent a number.
+    """
+    try:
+        import pandas as pd
+        from models.database import Dataset
+
+        dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
+        if not dataset:
+            return f"Dataset {dataset_id} not found.", ""
+        if not os.path.exists(dataset.file_path):
+            return "Dataset file not found.", ""
+
+        df = _read_dataset(dataset.file_path)
+        cols = list(df.columns)
+
+        amount_col = (
+            _find_col(cols, ["amount"], exclude=["fee", "settlement"])
+            or _find_col(cols, ["tpv"])
+            or _find_col(cols, ["value"])
+        )
+        fee_col = _find_col(cols, ["fee"])
+        settlement_col = _find_col(cols, ["settlement"])
+        country_col = _find_col(cols, ["merchant", "country"]) or _find_col(cols, ["country"])
+        scheme_col = _find_col(cols, ["scheme"])
+        category_col = _find_col(cols, ["category"])
+        channel_col = _find_col(cols, ["channel"])
+        domestic_col = _find_col(cols, ["domestic"]) or _find_col(cols, ["international"])
+        status_col = _find_col(cols, ["status"])
+        decline_col = _find_col(cols, ["decline"])
+        fraud_col = _find_col(cols, ["fraud"])
+
+        if not amount_col:
+            return "generate_report_tables: could not detect an amount/TPV column in this dataset — falling back to narrative reporting.", ""
+
+        n = len(df)
+        total_tpv = float(df[amount_col].sum())
+        avg_txn = float(df[amount_col].mean())
+        lines: list[str] = []
+
+        completed_count = declined_count = refunded_count = 0
+        completed_tpv = approval_rate = 0.0
+        fraud_count = 0
+        fraud_rate = fraud_value = 0.0
+        total_fees = total_settlement = 0.0
+        top_decline = second_decline = None
+        declined_mask = pd.Series([False] * n, index=df.index)
+        decline_rows = df.iloc[0:0]
+
+        if status_col:
+            status_lower = df[status_col].astype(str).str.lower()
+            completed_mask = status_lower.str.contains("complet|success|approv", regex=True)
+            declined_mask = status_lower.str.contains("declin|fail|reject", regex=True)
+            refunded_mask = status_lower.str.contains("refund", regex=True)
+            completed_count = int(completed_mask.sum())
+            declined_count = int(declined_mask.sum())
+            refunded_count = int(refunded_mask.sum())
+            approval_rate = completed_count / n * 100
+            completed_tpv = float(df.loc[completed_mask, amount_col].sum())
+            decline_rows = df[declined_mask]
+
+        if fraud_col:
+            fraud_mask = df[fraud_col].astype(str).str.lower().isin(["yes", "true", "1", "y"])
+            fraud_count = int(fraud_mask.sum())
+            fraud_rate = fraud_count / n * 100
+            fraud_value = float(df.loc[fraud_mask, amount_col].sum())
+
+        if fee_col:
+            total_fees = float(df[fee_col].sum())
+        if settlement_col:
+            total_settlement = float(df[settlement_col].sum())
+
+        if decline_col and status_col and len(decline_rows) > 0:
+            decline_counts = decline_rows[decline_col].value_counts()
+            if len(decline_counts) > 0:
+                top_decline = (str(decline_counts.index[0]), int(decline_counts.iloc[0]))
+            if len(decline_counts) > 1:
+                second_decline = (str(decline_counts.index[1]), int(decline_counts.iloc[1]))
+
+        # ── 1. Executive Summary ──────────────────────────────────
+        overview = f"This report analyzes {n:,} transactions totaling AED {total_tpv:,.2f} in TPV"
+        overview += f", with a {approval_rate:.2f}% approval rate." if status_col else "."
+        if fraud_col:
+            overview += f" {fraud_count} transactions (AED {fraud_value:,.2f}) were flagged as suspected fraud"
+            overview += f", and the leading decline reason was {top_decline[0]} ({top_decline[1]} of {declined_count} declines)." if top_decline else "."
+
+        lines.append("## Executive Summary")
+        lines.append("")
+        lines.append(overview)
+        lines.append("")
+        lines.append(f"- Total TPV: AED {total_tpv:,.2f} ({n} transactions)")
+        if status_col:
+            lines.append(f"- Approval rate: {approval_rate:.2f}% ({completed_count} Completed, {declined_count} Declined, {refunded_count} Refunded)")
+            lines.append(f"- Completed TPV: AED {completed_tpv:,.2f}")
+        lines.append(f"- Average transaction value: AED {avg_txn:,.2f}")
+        if fraud_col:
+            lines.append(f"- Suspected fraud: {fraud_count} transactions ({fraud_rate:.2f}%), AED {fraud_value:,.2f} flagged value")
+        if fee_col or settlement_col:
+            lines.append(f"- Total processing fees: AED {total_fees:,.2f} | Total settlement: AED {total_settlement:,.2f}")
+        if top_decline:
+            second_txt = f", then {second_decline[0]} ({second_decline[1]})" if second_decline else ""
+            lines.append(f"- Top decline reason: {top_decline[0]} ({top_decline[1]} of {declined_count}){second_txt}")
+        lines.append("")
+
+        sections: dict = {"transaction_count": n, "total_tpv": round(total_tpv, 2)}
+
+        # ── 2. Geographic Breakdown ────────────────────────────────
+        if country_col:
+            geo = df.groupby(country_col)[amount_col].sum().sort_values(ascending=False)
+            geo_pct = (geo / total_tpv * 100).round(1)
+            lines.append("## Geographic Breakdown (by Merchant Country, TPV)")
+            lines.append("")
+            lines.append("| Country | TPV (AED) | % of Total TPV |")
+            lines.append("|---|---|---|")
+            for c in geo.index:
+                lines.append(f"| {c} | {geo[c]:,.2f} | {geo_pct[c]}% |")
+            lines.append("")
+            top_c = geo.index[0]
+            interp = f"{top_c} accounts for the largest share of TPV at {geo_pct[top_c]}%"
+            if len(geo) >= 2:
+                second_c = geo.index[1]
+                interp += f", followed by {second_c} at {geo_pct[second_c]}%."
+            else:
+                interp += "."
+            lines.append(interp)
+            lines.append("")
+            sections["geographic_breakdown"] = [
+                {"country": str(c), "tpv": float(geo[c]), "pct_of_total": float(geo_pct[c])} for c in geo.index
+            ]
+
+        # ── 3. Card Scheme Mix ─────────────────────────────────────
+        if scheme_col:
+            scheme = df.groupby(scheme_col)[amount_col].sum().sort_values(ascending=False)
+            scheme_pct = (scheme / total_tpv * 100).round(1)
+            lines.append("## Card Scheme Mix (TPV Share)")
+            lines.append("")
+            lines.append("| Card Scheme | % of Total TPV |")
+            lines.append("|---|---|")
+            for c in scheme.index:
+                lines.append(f"| {c} | {scheme_pct[c]}% |")
+            lines.append("")
+            sections["card_scheme_mix"] = [{"scheme": str(c), "pct_of_total": float(scheme_pct[c])} for c in scheme.index]
+
+        # ── 4. Merchant Category Breakdown ─────────────────────────
+        if category_col:
+            cat = df.groupby(category_col)[amount_col].sum().sort_values(ascending=False)
+            cat_pct = (cat / total_tpv * 100).round(1)
+            lines.append("## Merchant Category Breakdown (TPV Share)")
+            lines.append("")
+            lines.append("| Category | TPV (AED) | % of Total TPV |")
+            lines.append("|---|---|---|")
+            for c in cat.index:
+                lines.append(f"| {c} | {cat[c]:,.2f} | {cat_pct[c]}% |")
+            lines.append("")
+            top_cat = cat.index[0]
+            top_cat_pct = float(cat_pct[top_cat])
+            if top_cat_pct > 20:
+                lines.append(
+                    f"{top_cat} is the single largest category at {top_cat_pct}% of TPV — "
+                    "this represents merchant category concentration risk, not diversification."
+                )
+            else:
+                lines.append(f"No single category exceeds 20% of TPV ({top_cat} is largest at {top_cat_pct}%), indicating a diversified merchant category mix.")
+            lines.append("")
+            sections["category_breakdown"] = [
+                {"category": str(c), "tpv": float(cat[c]), "pct_of_total": float(cat_pct[c])} for c in cat.index
+            ]
+
+        # ── 5. Channel Mix ──────────────────────────────────────────
+        if channel_col:
+            chan = df.groupby(channel_col)[amount_col].sum().sort_values(ascending=False)
+            chan_pct = (chan / total_tpv * 100).round(1)
+            lines.append("## Channel Mix (TPV Share)")
+            lines.append("")
+            lines.append("| Channel | % of Total TPV |")
+            lines.append("|---|---|")
+            for c in chan.index:
+                lines.append(f"| {c} | {chan_pct[c]}% |")
+            lines.append("")
+            sections["channel_mix"] = [{"channel": str(c), "pct_of_total": float(chan_pct[c])} for c in chan.index]
+
+        # ── 6. Domestic vs. International ──────────────────────────
+        if domestic_col and status_col:
+            lines.append("## Domestic vs. International")
+            lines.append("")
+            lines.append("| Segment | % of Total TPV | Approval Rate |")
+            lines.append("|---|---|---|")
+            seg_stats = []
+            for seg in df[domestic_col].dropna().unique():
+                sub = df[df[domestic_col] == seg]
+                seg_tpv_pct = float(sub[amount_col].sum() / total_tpv * 100)
+                seg_status_lower = sub[status_col].astype(str).str.lower()
+                seg_completed = int(seg_status_lower.str.contains("complet|success|approv", regex=True).sum())
+                seg_appr = float(seg_completed / len(sub) * 100) if len(sub) else 0.0
+                seg_stats.append({"segment": str(seg), "pct_of_total": round(seg_tpv_pct, 1), "approval_rate": round(seg_appr, 2)})
+            for s in seg_stats:
+                lines.append(f"| {s['segment']} | {s['pct_of_total']}% | {s['approval_rate']}% |")
+            lines.append("")
+            if len(seg_stats) >= 2:
+                higher = max(seg_stats, key=lambda s: s["approval_rate"])
+                lower = min(seg_stats, key=lambda s: s["approval_rate"])
+                if higher["segment"] != lower["segment"]:
+                    lines.append(
+                        f"{higher['segment']} transactions show a higher approval rate ({higher['approval_rate']}%) "
+                        f"than {lower['segment']} ({lower['approval_rate']}%), despite representing "
+                        f"{higher['pct_of_total']}% of total TPV."
+                    )
+            lines.append("")
+            sections["domestic_vs_international"] = seg_stats
+
+        # ── 7. Decline Reasons ───────────────────────────────────────
+        if decline_col and status_col:
+            lines.append("## Decline Reasons")
+            lines.append("")
+            lines.append("| Reason | Count |")
+            lines.append("|---|---|")
+            decline_list = []
+            if len(decline_rows) > 0:
+                dc = decline_rows[decline_col].value_counts()
+                for r in dc.index:
+                    lines.append(f"| {r} | {int(dc[r])} |")
+                    decline_list.append({"reason": str(r), "count": int(dc[r])})
+            lines.append("")
+            sections["decline_reasons"] = decline_list
+
+        # ── 8. Notes on Methodology ──────────────────────────────────
+        lines.append("## Notes on Methodology")
+        lines.append("")
+        lines.append("- All figures in this report were computed directly from the dataset via pandas aggregation (groupby, sum, mean, value_counts) — not generated freehand.")
+        lines.append(f"- Based on {n:,} transaction records loaded directly from the source file.")
+        if decline_col and status_col:
+            lines.append("- Decline reason counts include only records with a declined status; placeholder values present on non-declined rows were excluded.")
+        lines.append("- TPV share percentages are rounded to 1 decimal place; approval and fraud rates are rounded to 2 decimal places.")
+
+        full_markdown = "\n".join(lines)
+
+        observation = (
+            "Report tables computed successfully via direct pandas aggregation. This is the "
+            "AUTHORITATIVE ground-truth report for all 8 sections — reuse these exact numbers "
+            "and tables verbatim in your final_answer. Do NOT recompute, round differently, or "
+            "type these numbers from memory.\n\n" + full_markdown
+        )
+        return observation, full_markdown
+    except Exception as exc:
+        return f"generate_report_tables error: {exc}", ""
 
 
 def _tool_benchmark_industry(metric_name: str, your_value: float, industry: str) -> str:
@@ -1066,23 +1410,28 @@ def _tool_generate_action_plan(
 # ─────────────────────────────────────────────────────────────────────────────
 
 class DataAnalystAgent:
-    MAX_ITERATIONS = 12
+    MAX_ITERATIONS = 15
 
     def __init__(self):
         self._charts: list[dict] = []
         self._report_sections: dict[str, str] = {}
+        self._last_report_markdown: Optional[str] = None
         self._provider = _AGENT_PROVIDER
 
         if self._provider == "anthropic":
             import anthropic
             self._anthropic_client = anthropic.Anthropic(api_key=_ANTHROPIC_API_KEY)
             logger.info("DataAnalystAgent using Anthropic Claude")
+        elif self._provider == "grok":
+            from openai import OpenAI
+            self._grok_client = OpenAI(api_key=_GROK_API_KEY, base_url=_GROK_BASE_URL, timeout=300.0)
+            logger.info(f"DataAnalystAgent using Grok (xAI) model: {_GROK_MODEL}")
         else:
             import httpx
-            self._http = httpx.Client(timeout=180.0)
+            self._http = httpx.Client(timeout=300.0)
             logger.info(f"DataAnalystAgent using Ollama model: {_OLLAMA_MODEL}")
 
-    def _llm_call(self, system_prompt: str, messages: list, max_tokens: int = 800) -> tuple[str, int]:
+    def _llm_call(self, system_prompt: str, messages: list, max_tokens: int = 4000) -> tuple[str, int]:
         """Unified LLM call — returns (raw_text, tokens_used)."""
         if self._provider == "anthropic":
             anthropic_messages = [m for m in messages if m["role"] != "system"]
@@ -1094,7 +1443,28 @@ class DataAnalystAgent:
                 temperature=0,
             )
             tokens = (response.usage.input_tokens + response.usage.output_tokens) if response.usage else 0
+            if response.stop_reason == "max_tokens":
+                logger.warning(
+                    f"Anthropic response truncated by max_tokens={max_tokens} "
+                    f"(stop_reason=max_tokens) — action_input may be incomplete."
+                )
             raw = "{" + (response.content[0].text if response.content else "}")
+            return raw, tokens
+        elif self._provider == "grok":
+            grok_messages = [{"role": "system", "content": system_prompt}] + [
+                m for m in messages if m["role"] != "system"
+            ]
+            response = self._grok_client.chat.completions.create(
+                model=_GROK_MODEL,
+                messages=grok_messages,
+                max_tokens=max_tokens,
+                temperature=0,
+            )
+            tokens = response.usage.total_tokens if response.usage else 0
+            raw = (response.choices[0].message.content or "").strip()
+            if not raw.startswith("{"):
+                start = raw.find("{")
+                raw = raw[start:] if start != -1 else "{}"
             return raw, tokens
         else:
             # Ollama
@@ -1133,6 +1503,7 @@ class DataAnalystAgent:
         total_tokens = 0
         self._charts = []
         self._report_sections = {}
+        self._last_report_markdown = None
 
         # ── Inject user memories into system prompt ──────────────────────────
         memory_block = ""
@@ -1161,6 +1532,7 @@ class DataAnalystAgent:
 
         final_summary = "Analysis did not complete — max iterations reached."
         final_status = "failed"
+        final_answer_retried = False
 
         # Separate system prompt from conversation messages for Anthropic
         anthropic_system = system_prompt
@@ -1168,7 +1540,7 @@ class DataAnalystAgent:
 
         for i in range(1, self.MAX_ITERATIONS + 1):
             try:
-                raw, tokens = self._llm_call(anthropic_system, anthropic_messages, max_tokens=800)
+                raw, tokens = self._llm_call(anthropic_system, anthropic_messages, max_tokens=4000)
                 total_tokens += tokens
                 parsed = _parse_llm_response(raw)
             except json.JSONDecodeError as exc:
@@ -1246,6 +1618,30 @@ class DataAnalystAgent:
             anthropic_messages.append({"role": "user", "content": f"Observation: {observation[:3000]}"})
 
             if action == "final_answer":
+                if self._last_report_markdown:
+                    # generate_report_tables ran this run — its output is the ground-truth
+                    # report. Use it verbatim instead of trusting the LLM's transcription,
+                    # which eliminates any chance of a hallucinated/mistyped number reaching
+                    # the user regardless of what the model wrote in action_input.
+                    final_summary = self._last_report_markdown
+                    final_status = "completed"
+                    break
+
+                has_content = bool(action_input.get("executive_summary")) or bool(action_input.get("summary"))
+                if not has_content and not final_answer_retried:
+                    final_answer_retried = True
+                    logger.warning(f"final_answer at step {i} had empty/degraded action_input — requesting retry")
+                    anthropic_messages.append({
+                        "role": "user",
+                        "content": (
+                            "Your final_answer action_input came back empty — it was likely cut off. "
+                            "Re-send ONLY the JSON object for final_answer now. Keep \"thought\" to ONE "
+                            "short sentence and put ALL substance in action_input: ceo_briefing, "
+                            "executive_summary, key_findings, risk_matrix, recommendations, action_plan, "
+                            "confidence, data_quality_notes. No markdown fences, no extra text."
+                        ),
+                    })
+                    continue
                 # New structured format: store full action_input as JSON so the
                 # frontend can render executive_summary, key_findings, etc.
                 # Legacy format: action_input contains just {"summary": "..."}
@@ -1255,6 +1651,13 @@ class DataAnalystAgent:
                     final_summary = action_input.get("summary", observation)
                 final_status = "completed"
                 break
+
+        # ── If the loop ran out of iterations but generate_report_tables already ran,
+        # the ground-truth report is already computed — use it rather than forcing
+        # another (potentially hallucinated) LLM synthesis call.
+        if final_status == "failed" and self._last_report_markdown:
+            final_summary = self._last_report_markdown
+            final_status = "completed"
 
         # ── If max iterations hit without final_answer, synthesise from what we have ──
         if final_status == "failed" and steps and "LLM error" not in final_summary:
@@ -1432,6 +1835,15 @@ class DataAnalystAgent:
                 content = action_input.get("content", "")
                 self._report_sections[section] = content
                 return f"Section '{section}' written ({len(content)} chars).", []
+
+            elif action == "generate_report_tables":
+                obs, full_markdown = _tool_generate_report_tables(
+                    dataset_id=action_input.get("dataset_id") or dataset_id or "",
+                    db=db,
+                )
+                if full_markdown:
+                    self._last_report_markdown = full_markdown
+                return obs, []
 
             elif action == "benchmark_industry":
                 return _tool_benchmark_industry(

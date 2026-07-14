@@ -373,6 +373,7 @@ function ChatPageInner() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [modelUsed, setModelUsed] = useState<string>('');
   const [lastAnimatedId, setLastAnimatedId] = useState<string | null>(null);
   const [showDatasetMenu, setShowDatasetMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -466,6 +467,7 @@ function ChatPageInner() {
 
       const assistantId = data.message_id || `ai-${Date.now()}`;
       setLastAnimatedId(assistantId);
+      if (data.model) setModelUsed(data.model);
       setMessages(prev => [
         ...prev.filter(m => m.id !== 'thinking'),
         {
@@ -666,7 +668,7 @@ function ChatPageInner() {
               {/* Model badge */}
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10">
                 <Brain className="w-3 h-3 text-indigo-400" />
-                <span className="text-xs text-slate-400">GPT-4o-mini</span>
+                <span className="text-xs text-slate-400">{modelUsed || 'Auto'}</span>
               </div>
 
               {messages.length > 0 && (
@@ -793,7 +795,7 @@ function ChatPageInner() {
 
             <div className="flex items-center justify-between mt-2 px-1">
               <p className="text-[11px] text-slate-600">
-                Powered by GPT-4o-mini · Context: {messages.filter(m => !m.thinking).length} messages
+                Powered by {modelUsed || 'Auto'} · Context: {messages.filter(m => !m.thinking).length} messages
               </p>
               {input.length > 0 && (
                 <p className={cn('text-[11px]', input.length > 800 ? 'text-amber-400' : 'text-slate-600')}>

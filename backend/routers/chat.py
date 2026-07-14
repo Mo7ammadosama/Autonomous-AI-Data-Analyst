@@ -233,6 +233,7 @@ async def send_message(req: ChatRequest, db: Session = Depends(get_db), current_
         "charts": charts,
         "code": code,
         "insights": insights,
+        "model": llm_router.last_model_used or "Unknown",
     }
 
 

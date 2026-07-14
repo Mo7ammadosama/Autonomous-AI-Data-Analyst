@@ -56,3 +56,6 @@ dist/
 
 # ChromaDB
 chroma_db/
+
+# Claude Code local state (worktrees, local settings)
+.claude/
