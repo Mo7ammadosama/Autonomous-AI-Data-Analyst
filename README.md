@@ -1,172 +1,128 @@
-# 🧠 DataMind AI — Autonomous AI Data Analyst
+# DataMind AI: Autonomous AI Data Analyst
 
-> Enterprise-grade AI-powered analytics platform. Upload datasets, chat with your data, generate dashboards, and receive automated insights.
+**An AI-powered analytics platform that works like a data team. Upload a dataset, ask questions in plain English, and get statistical insights, forecasts, dashboards, and reports automatically.**
+
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=nextdotjs&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-DC382D?logo=redis&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?logo=scikitlearn&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
+
+![AI Insights](docs/screenshots/ai-insights.png)
 
 ---
 
-## 🚀 Quick Start
+## Features
 
-### Prerequisites
-- Python 3.10+
-- Node.js 18+
-- npm 9+
+### AI analysis
+- **AI Agent:** give it a goal ("find anomalies in Q4 sales and explain them") and it plans and runs the analysis on its own
+- **Chat with your data:** conversational Q&A over any uploaded dataset
+- **Natural language to SQL:** turns plain-English questions into SQL queries
+- **Auto insights:** correlations, trends, missing-data warnings, and performance summaries with statistical backing (R², p-values)
+- **Notebooks:** run Python analysis in a sandboxed environment
 
----
+### Advanced analytics
+- **Forecasting** of future values from historical data
+- **AutoML:** trains and compares machine-learning models automatically
+- **Anomaly detection and root-cause analysis** to explain what drove a change
+- **What-if scenarios** to test the impact of assumptions
+- **Intelligence feed:** proactive monitoring that flags anomalies and opportunities
 
-### Backend Setup
+### Build and share
+- Dashboards, custom and scheduled reports, PDF export, and 20+ industry templates
+- Alerts, webhooks, email notifications, and shareable links
+- Data connections to databases, BigQuery, MongoDB, and S3, plus a data catalog
 
-```bash
-cd backend
+### Platform
+- **Multi-LLM routing** across OpenAI, Anthropic Claude, Google Gemini, and local models via Ollama, with a rule-based fallback when no LLM is configured
+- **MCP server** that exposes DataMind as tools for Claude Desktop, Cursor, and other AI agents
+- JWT authentication, rate limiting, workspaces, and API keys
+- Background jobs with Celery and Redis, and real-time updates over WebSockets
 
-# 1. Create virtual environment
-python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
+## Architecture
 
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. Configure environment
-cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY (optional)
-
-# 4. Start the API server
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```mermaid
+flowchart LR
+    U[Browser] --> FE[Next.js 14 frontend<br/>:3000]
+    FE --> API[FastAPI backend<br/>:8000]
+    API --> PG[(PostgreSQL<br/>+ pgvector)]
+    API --> R[(Redis)]
+    R --> W[Celery worker<br/>& scheduler]
+    API --> LLM[LLM router<br/>OpenAI · Claude · Gemini · Ollama]
+    MCP[MCP server] --> API
 ```
 
-API available at: http://localhost:8000
-API docs at: http://localhost:8000/docs
+| Layer | Technologies |
+|---|---|
+| Backend | FastAPI, SQLAlchemy, Alembic, Pydantic, python-jose, SlowAPI |
+| Data & ML | pandas, NumPy, scikit-learn, SciPy, statsmodels, sentence-transformers |
+| AI | OpenAI, Anthropic, Google Gemini, Ollama, RAG with pgvector |
+| Frontend | Next.js 14, TypeScript, Tailwind CSS |
+| Infrastructure | PostgreSQL, Redis, Celery, Docker Compose, GitHub Actions CI |
 
----
+## Getting started
 
-### Frontend Setup
+### Option 1: Docker (full stack)
 
 ```bash
+cp .env.example .env        # add at least one LLM key, e.g. OPENAI_API_KEY
+docker compose up --build
+```
+
+This starts PostgreSQL, Redis, the API, Celery workers, and the frontend. Open http://localhost:3000.
+
+### Option 2: Run locally
+
+**Requirements:** Python 3.10+, Node.js 18+
+
+```bash
+# Backend (http://localhost:8000, API docs at /docs)
+cd backend
+python -m venv venv
+source venv/bin/activate          # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp ../.env.example .env           # optional: add an LLM key
+uvicorn main:app --reload --port 8000
+```
+
+```bash
+# Frontend (http://localhost:3000), in a second terminal
 cd frontend
-
-# 1. Install dependencies
 npm install
-
-# 2. Start the development server
 npm run dev
 ```
 
-Frontend available at: http://localhost:3000
+Without `DATABASE_URL`, the backend falls back to a local SQLite database. Without an LLM key, it uses built-in statistical analysis.
 
----
+Click **"Try Demo"** on the login page for instant access.
 
-## 🔑 First Login
+## Tests
 
-1. Open http://localhost:3000
-2. Click **"Try Demo — No signup required"** for instant access
-3. Or register a new account
-
----
-
-## 🤖 AI Configuration
-
-### Option A: OpenAI (recommended)
-Add to `backend/.env`:
-```
-OPENAI_API_KEY=sk-your-key-here
+```bash
+cd backend
+pytest
 ```
 
-### Option B: Ollama (local, free)
-1. Install Ollama from https://ollama.ai
-2. Run: `ollama pull llama3`
-3. Add to `backend/.env`:
-```
-USE_OLLAMA=true
-OLLAMA_MODEL=llama3
-```
+The GitHub Actions pipeline runs the backend tests, migrations, and a production frontend build on every push and pull request to `main`.
 
-### Option C: No LLM (rule-based)
-Works without any AI configuration — uses built-in statistical analysis.
-
----
-
-## 📁 Project Structure
+## Project structure
 
 ```
-AUTONOMOUS_AI_DATA_ANALYST/
-├── backend/                  # FastAPI backend
-│   ├── main.py               # App entry point
-│   ├── models/               # SQLAlchemy models
-│   ├── routers/              # API route handlers
-│   ├── services/             # Business logic
-│   │   ├── ai_agent.py       # Autonomous AI agent
-│   │   ├── data_processor.py # Data analysis engine
-│   │   ├── llm_service.py    # LLM abstraction
-│   │   └── visualization.py  # Chart generation
-│   ├── security/             # JWT auth
-│   └── requirements.txt
-│
-├── frontend/                 # Next.js 14 frontend
-│   ├── src/app/              # App router pages
-│   │   ├── page.tsx          # Login/landing
-│   │   ├── dashboard/        # Overview dashboard
-│   │   ├── datasets/         # Dataset manager + upload
-│   │   ├── chat/             # AI chat interface
-│   │   ├── analytics/        # Analytics explorer
-│   │   ├── insights/         # AI insights
-│   │   ├── dashboards/       # Dashboard builder
-│   │   ├── reports/          # Report generation
-│   │   └── settings/         # Configuration
-│   ├── src/components/       # Reusable components
-│   └── src/lib/              # API client, store, utils
-│
-└── README.md
+backend/
+├── main.py            FastAPI entry point
+├── routers/           35+ API modules (agent, chat, nl2sql, automl, forecasting, ...)
+├── services/          Analysis engines, LLM router, RAG, sandbox, report builder
+├── models/            SQLAlchemy models
+├── security/          JWT authentication
+├── mcp_server.py      Model Context Protocol server
+└── tests/             pytest suite
+frontend/              Next.js 14 app (dashboards, chat, analytics, reports, ...)
+docker-compose.yml     PostgreSQL, Redis, API, Celery, frontend
 ```
 
----
+## Author
 
-## ✨ Features
-
-| Feature | Description |
-|---------|-------------|
-| 📊 Dataset Manager | Upload CSV, JSON, Excel with drag & drop |
-| 🤖 AI Chat | Ask questions in plain English |
-| 📈 Analytics Explorer | Correlations, outliers, distributions, ML |
-| 💡 AI Insights | Auto-generated business insights |
-| 🎛️ Dashboards | Auto-generate dashboards from commands |
-| 📄 Reports | PDF report generation with charts |
-| 🔐 Auth | JWT-based auth with roles |
-| 🌙 Dark Mode | Professional dark UI throughout |
-
----
-
-## 🛠 Tech Stack
-
-**Backend:** FastAPI · SQLAlchemy · Pandas · NumPy · Scikit-learn · Plotly · JWT
-
-**Frontend:** Next.js 14 · React · TypeScript · Tailwind CSS · Framer Motion · Plotly.js · Zustand
-
-**AI:** OpenAI GPT-4o-mini · Ollama (local) · Rule-based fallback
-
----
-
-## 📝 Environment Variables
-
-### Backend (`backend/.env`)
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATABASE_URL` | `sqlite:///./ai_analyst.db` | Database connection |
-| `SECRET_KEY` | (change this!) | JWT signing key |
-| `UPLOAD_DIR` | `./uploads` | Dataset storage path |
-| `OPENAI_API_KEY` | `` | OpenAI API key |
-| `USE_OLLAMA` | `false` | Use Ollama instead |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama endpoint |
-| `OLLAMA_MODEL` | `llama3` | Ollama model name |
-
----
-
-## 🐛 Troubleshooting
-
-**Backend won't start:** Check Python version (`python --version` ≥ 3.10) and that all packages installed.
-
-**CORS errors:** Ensure backend is running on port 8000 and frontend on port 3000.
-
-**Charts not rendering:** Plotly.js requires a browser environment. SSR is handled — refresh if blank.
-
-**Upload fails:** Check `uploads/` directory exists and is writable in the backend folder.
-
-**PDF download fails:** Install reportlab: `pip install reportlab`
+**Mohammad Albreim**, Data Science & AI
+[LinkedIn](https://linkedin.com/in/albreim-ai-ds) · [GitHub](https://github.com/Mo7ammadosama)
