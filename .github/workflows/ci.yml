@@ -63,9 +63,11 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-asyncio httpx pytest-cov
 
-      - name: Run Alembic migrations
+      - name: Initialize database schema
         working-directory: backend
-        run: python -m alembic upgrade head
+        run: |
+          python -c "import main; from models.database import init_db; init_db()"
+          python -m alembic stamp head
 
       - name: Import check — all modules
         working-directory: backend
